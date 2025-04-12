@@ -93,6 +93,9 @@ class roboMotorControl():
                 self.pi.set_PWM_dutycycle(FORWARD_RIGHT, new_duty_cycle)
                 delay_counter = 0
         self.stop_motion()
+        time.sleep(0.4)
+        return self.odom.get_distance()
+        
         
     def backward(self, tf):
         # Left wheels
@@ -141,6 +144,7 @@ class roboMotorControl():
             self.rotate_by(option_1)
         else:
             self.rotate_by(option_2)
+        return self.imu.get_heading()
         
         
     def rotate_by(self, angle_deg):
@@ -192,6 +196,8 @@ class roboMotorControl():
 
         self.stop_motion()
         time.sleep(0.3) # wait for robot to settle
+        return self.imu.get_heading()
+        
         
 
     @staticmethod
