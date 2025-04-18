@@ -1,8 +1,9 @@
 import time
-from imu import IMU
 import pigpio
 import numpy as np
-from odometry import odometer
+
+from utilities.imu import IMU
+from utilities.odometry import odometer
 
 
 SERVO_GPIO = 16
@@ -165,14 +166,20 @@ class roboMotorControl():
         Negative: counterclockwise
         """
         
-        # if angle_deg > 0:
-        #     angle_deg -= 4
+        DEBUG = True
+        
         
         start_heading = self.imu.get_heading()  # 0–360
         target_heading = (start_heading + angle_deg) % 360
+        if DEBUG:
+            print(f"[Robot Motor Control] Start Heading: {start_heading}", end=" ")
+            print(f"\t Target Heading: {target_heading}")
         
-        FAST_DUTY_CYCLE = 80
-        SLOW_DUTY_CYCLE = 50
+        # FAST_DUTY_CYCLE = 80
+        # SLOW_DUTY_CYCLE = 50
+        
+        FAST_DUTY_CYCLE = 50
+        SLOW_DUTY_CYCLE = 30
         
         # Determine direction
         if angle_deg > 0:
@@ -209,6 +216,8 @@ class roboMotorControl():
 
         self.stop_motion()
         time.sleep(0.3) # wait for robot to settle
+        if DEBUG:
+            print(f"[Robot Motor Control] Ending Heading: {self.imu.get_heading()}")
         return self.imu.get_heading()
         
     @staticmethod

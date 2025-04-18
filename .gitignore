@@ -2,3 +2,4 @@
 *.png
 *.avi
 *.h264
+utilities/__pycache__
