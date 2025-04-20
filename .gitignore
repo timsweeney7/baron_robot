@@ -2,4 +2,5 @@
 *.png
 *.avi
 *.h264
+.DS_Store
 utilities/__pycache__

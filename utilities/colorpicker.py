@@ -16,7 +16,10 @@ import cv2
 import argparse
 import imutils
 from operator import xor
+import matplotlib.pyplot as plt
 
+frame_to_thresh = 0
+rgb_image = 0
 
 
 def callback(value):
@@ -52,6 +55,17 @@ def get_arguments():
 
 	return args
 
+def get_pixel_values(x, y):
+    
+	# Convert x and y to integer indices
+	hsv_image = frame_to_thresh
+	col, row = int(x + 0.5), int(y + 0.5)
+	if 0 <= col < rgb_image.shape[1] and 0 <= row < rgb_image.shape[0]:
+		rgb = rgb_image[row, col]
+		hsv = hsv_image[row, col]
+		return f"RGB: {rgb}  HSV: {hsv}"
+	else:
+		return ""
 
 def get_trackbar_values(range_filter):
 	values = []
@@ -69,24 +83,34 @@ def main():
 	args = get_arguments()
 
 	range_filter = args['filter'].upper()
+ 
+	global rgb_image
+	global frame_to_thresh
 
 
 	if args['image']:
 		# ensure the name of your image file is
 		# provided in the line below
-		image = cv2.imread(args["image"],1)
+		bgr_image = cv2.imread(args["image"])
 		# resize image to fit the screen
 		# feel free to modify the value of "width" as desired
-		image = imutils.resize(image, width=600)
+		bgr_image = imutils.resize(bgr_image, width=600)
+		rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_RGB2BGR)
 
 		if range_filter == 'RGB':
 			frame_to_thresh = image.copy()
 		else:
-			frame_to_thresh = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+			frame_to_thresh = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2HSV)
 	else:
 		camera = cv2.VideoCapture(0)
 
 	setup_trackbars(range_filter)
+ 
+	# plt.imshow()
+	plt.imshow(rgb_image)
+	ax = plt.gca()
+	ax.format_coord = get_pixel_values
+	plt.show(block=False)
 
 	while True:
 		if args['webcam']:
@@ -108,7 +132,6 @@ def main():
 			preview = cv2.bitwise_and(image, image, mask=thresh)
 			cv2.imshow("Preview", preview)
 		else:
-			cv2.imshow("Original", image)
 			cv2.imshow("Thresh", thresh)
 
 		if cv2.waitKey(1) & 0xFF is ord('q'):
