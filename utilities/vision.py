@@ -30,11 +30,13 @@ GREEN_UB = np.array([75, 255, 255])
 
 
 # ON THE PORCH ----------------
-RED_LB = np.array([0, 195, 0])
-RED_UB = np.array([25, 255, 255])
+RED_LS_LB = np.array([0, 195, 160])
+RED_LS_UB = np.array([25, 255, 255])
+RED_HS_LB = np.array([165, 195, 160])
+RED_HS_UB = np.array([180, 255, 255])
 
-GREEN_LB = np.array([50, 140, 100])
-GREEN_UB = np.array([70, 255, 255])
+GREEN_LB = np.array([40, 100, 0])
+GREEN_UB = np.array([80, 255, 255])
 
 CYAN_LB = np.array([100, 140, 100])
 CYAN_UB = np.array([110, 255, 255])
@@ -54,7 +56,7 @@ class Block():
     """
     class for recording properties of blocks identified in a frame
     """
-    def __init__(self, color:str, distance_from_robo:float, angle_to_robo:float, knocked_over=False, bounding_area=None):
+    def __init__(self, color:str, distance_from_robo:float, angle_to_robo:float, knocked_over=False, bounding_height=None):
         """
         @param color: The color of the block identified
         @param distance_from_robo: The distance the robot is from the block in meters
@@ -63,7 +65,7 @@ class Block():
         self.color = color
         self.distance_from_robo = distance_from_robo
         self.angle_to_robo = angle_to_robo
-        self.bounding_area = bounding_area
+        self.bounding_height = bounding_height
         self.knocked_over = knocked_over
 
 
@@ -110,11 +112,12 @@ class Camera():
         @return blocks: list of blocks identified
         """
         found_blocks = []
-        output_frame = frame
         hsv_frame = cv.cvtColor(frame, cv.COLOR_RGB2HSV)
         # Draw a line down the middle of the image
-        output_frame = cv.line(output_frame, pt1=(int(IMAGE_WIDTH/2), 0), pt2=(int(IMAGE_WIDTH/2), IMAGE_HEIGHT), color=(0,0,0))
-        for color in [(GREEN_LB, GREEN_UB, RGB_GREEN), (RED_LB, RED_UB, RGB_RED), (CYAN_LB, CYAN_UB, RGB_CYAN)]:
+        output_frame = cv.line(frame, pt1=(int(IMAGE_WIDTH/2), 0), pt2=(int(IMAGE_WIDTH/2), IMAGE_HEIGHT), color=(0,0,0))
+        
+        # Find CYAN and GREEN blocks
+        for color in [(GREEN_LB, GREEN_UB, RGB_GREEN), (CYAN_LB, CYAN_UB, RGB_CYAN)]:
             # create mask 
             mask = cv.inRange(hsv_frame, color[0], color[1])
             # find contours
@@ -131,11 +134,8 @@ class Camera():
             # Draw the bounding box and center in the image.  
             output_frame = cv.rectangle(output_frame, (x, y), (x + w, y + h), color[2], 2)
             output_frame = cv.circle(output_frame, center=center, radius=3, color=color[2], thickness=-1)
-            
             # Find the angle of the robot to the block
             angle = (center[0] - IMAGE_WIDTH/2) * DEG_PER_PIXEL
-            # Find the area of the bounding box
-            area = (h) * (w) 
             # dist = calculate_block_distance(area)
             # Determine if the block is knocked over based on aspect ratio
             if w > h:
@@ -143,9 +143,42 @@ class Camera():
             else:
                 knocked_over = False
             # Create a block object to return
-            out_block = Block(color='GREEN', distance_from_robo=0, angle_to_robo=angle, knocked_over=knocked_over, bounding_area=area)
+            out_block = Block(color='GREEN', distance_from_robo=0, angle_to_robo=angle, knocked_over=knocked_over, bounding_height=h)
             found_blocks.append(out_block)
             
+        # Repeat the process for RED blocks.  
+        # RED wraps from 0 to 180 in HSV colorspace so we need two loops
+        mask = np.zeros(np.shape(frame)[:2]).astype(np.uint8)  # 2d shape
+        for color in [(RED_LS_LB, RED_LS_UB),(RED_HS_LB, RED_HS_UB)]:
+            # create mask
+            partial_mask = cv.inRange(hsv_frame, color[0], color[1])
+            mask = cv.bitwise_or(mask, partial_mask)
+        
+        # find contours
+        contours, _ = cv.findContours(mask, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_NONE)
+        # non_zero_coords = cv2.findNonZero(mask)
+        # Sort contours by area in descending order
+        contours = sorted(contours, key=cv.contourArea, reverse=True)
+        if len(contours) != 0:
+            # Place a bounding box around the largest contour
+            x, y, w, h = cv.boundingRect(contours[0])
+            # Calculate the center of the bounding box
+            center = (int((x + x + w)/2), int((y + y + h)/2))
+            # Draw the bounding box and center in the image.  
+            output_frame = cv.rectangle(output_frame, (x, y), (x + w, y + h), RGB_RED, 2)
+            output_frame = cv.circle(output_frame, center=center, radius=3, color=RGB_RED, thickness=-1)
+            # Find the angle of the robot to the block
+            angle = (center[0] - IMAGE_WIDTH/2) * DEG_PER_PIXEL
+            # dist = calculate_block_distance(area)
+            # Determine if the block is knocked over based on aspect ratio
+            if w > h:
+                knocked_over = True
+            else:
+                knocked_over = False
+            # Create a block object to return
+            out_block = Block(color='GREEN', distance_from_robo=0, angle_to_robo=angle, knocked_over=knocked_over, bounding_height=h)
+            found_blocks.append(out_block)
+        
         return output_frame, found_blocks
 
         
