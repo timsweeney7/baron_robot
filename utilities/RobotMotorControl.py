@@ -178,8 +178,8 @@ class roboMotorControl():
         # FAST_DUTY_CYCLE = 80
         # SLOW_DUTY_CYCLE = 50
         
-        FAST_DUTY_CYCLE = 50
-        SLOW_DUTY_CYCLE = 30
+        FAST_DUTY_CYCLE = 80
+        SLOW_DUTY_CYCLE = 50
         
         # Determine direction
         if angle_deg > 0:
