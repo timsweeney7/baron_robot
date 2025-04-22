@@ -50,6 +50,7 @@ RGB_BLACK = (0, 0, 0)
 RGB_GREEN = (0, 255, 0)
 RGB_CYAN = (0, 255, 255)
 RGB_RED = (255, 0, 0)
+GRAND_CHALLENGE_ROW_CROP = 150
 
 
 class Block():
@@ -90,6 +91,15 @@ class Camera():
         rgb_image = self.picam2.capture_array()
         return rgb_image
     
+    def crop_image(self, frame, row):
+        """
+        Crops the image to keep FOV within the grand challenge arena
+        @param frame: (np.array) the frame to crop
+        @param row: the row of the image to begin the crop.  All row LESS THAN the input row will be removed
+        """
+        output_frame = frame[row:]
+        return output_frame
+    
     
     def calculate_block_distance(self, block: Block):
         """
@@ -112,6 +122,7 @@ class Camera():
         @return blocks: list of blocks identified
         """
         found_blocks = []
+        frame = self.crop_image(frame, GRAND_CHALLENGE_ROW_CROP)
         hsv_frame = cv.cvtColor(frame, cv.COLOR_RGB2HSV)
         # Draw a line down the middle of the image
         output_frame = cv.line(frame, pt1=(int(IMAGE_WIDTH/2), 0), pt2=(int(IMAGE_WIDTH/2), IMAGE_HEIGHT), color=(0,0,0))
@@ -129,6 +140,9 @@ class Camera():
                 continue
             # Place a bounding box around the largest contour
             x, y, w, h = cv.boundingRect(contours[0])
+            # print(f"{color[2]} bounding box height: {h}")
+            if h < 12:
+                continue
             # Calculate the center of the bounding box
             center = (int((x + x + w)/2), int((y + y + h)/2))
             # Draw the bounding box and center in the image.  
@@ -162,23 +176,24 @@ class Camera():
         if len(contours) != 0:
             # Place a bounding box around the largest contour
             x, y, w, h = cv.boundingRect(contours[0])
-            # Calculate the center of the bounding box
-            center = (int((x + x + w)/2), int((y + y + h)/2))
-            # Draw the bounding box and center in the image.  
-            output_frame = cv.rectangle(output_frame, (x, y), (x + w, y + h), RGB_RED, 2)
-            output_frame = cv.circle(output_frame, center=center, radius=3, color=RGB_RED, thickness=-1)
-            # Find the angle of the robot to the block
-            angle = (center[0] - IMAGE_WIDTH/2) * DEG_PER_PIXEL
-            # dist = calculate_block_distance(area)
-            # Determine if the block is knocked over based on aspect ratio
-            if w > h:
-                knocked_over = True
-            else:
-                knocked_over = False
-            # Create a block object to return
-            out_block = Block(color='GREEN', distance_from_robo=0, angle_to_robo=angle, knocked_over=knocked_over, bounding_height=h)
-            found_blocks.append(out_block)
-        
+            if h > 12:
+                # Calculate the center of the bounding box
+                center = (int((x + x + w)/2), int((y + y + h)/2))
+                # Draw the bounding box and center in the image.  
+                output_frame = cv.rectangle(output_frame, (x, y), (x + w, y + h), RGB_RED, 2)
+                output_frame = cv.circle(output_frame, center=center, radius=3, color=RGB_RED, thickness=-1)
+                # Find the angle of the robot to the block
+                angle = (center[0] - IMAGE_WIDTH/2) * DEG_PER_PIXEL
+                # dist = calculate_block_distance(area)
+                # Determine if the block is knocked over based on aspect ratio
+                if w > h:
+                    knocked_over = True
+                else:
+                    knocked_over = False
+                # Create a block object to return
+                out_block = Block(color='GREEN', distance_from_robo=0, angle_to_robo=angle, knocked_over=knocked_over, bounding_height=h)
+                found_blocks.append(out_block)
+            
         return output_frame, found_blocks
 
         
