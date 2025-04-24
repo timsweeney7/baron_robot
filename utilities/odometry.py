@@ -6,7 +6,7 @@ import pigpio
 RIGHT_ENCODER = 18 # right
 LEFT_ENCODER = 4 # left 
 
-class odometer():
+class Odometer():
     
     def __init__(self):
         
@@ -83,3 +83,9 @@ class odometer():
         rotations = ticks/20
         distance = rotations  * (2*np.pi*0.0325)
         return distance
+    
+    
+class WorldMap():
+    
+    def __init__(self, length, width):
+        self.map = np.array()

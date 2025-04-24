@@ -3,7 +3,7 @@ import pigpio
 import numpy as np
 
 from utilities.imu import IMU
-from utilities.odometry import odometer
+from utilities.odometry import Odometer
 
 
 SERVO_GPIO = 16
@@ -34,9 +34,9 @@ class PID_Control():
         return mv
 
 
-class roboMotorControl():
+class RobotMotorControl():
     
-    def __init__(self):
+    def __init__(self, imu:IMU, odom:Odometer):
         self.pi = pigpio.pi()
 
         # wheels DC motor
@@ -59,10 +59,10 @@ class roboMotorControl():
         self.pi.set_servo_pulsewidth(SERVO_GPIO, 1000)
  
         # IMU for rotation calculations
-        self.imu = IMU()
+        self.imu = imu
         
         # Create an odometer
-        self.odom = odometer()
+        self.odom = odom
         
     def stop_motion(self):
         # set all pins low
@@ -128,6 +128,9 @@ class roboMotorControl():
         
         
     def backward(self, tf):
+        
+        #TODO: Add PID control and distance measurement
+        
         # Left wheels
         self.pi.write(FORWARD_LEFT, False)
         self.pi.write(BACKWARD_LEFT, True)
@@ -175,11 +178,11 @@ class roboMotorControl():
             print(f"[Robot Motor Control] Start Heading: {start_heading}", end=" ")
             print(f"\t Target Heading: {target_heading}")
         
-        # FAST_DUTY_CYCLE = 80
-        # SLOW_DUTY_CYCLE = 50
-        
         FAST_DUTY_CYCLE = 80
         SLOW_DUTY_CYCLE = 50
+        
+        # FAST_DUTY_CYCLE = 80
+        # SLOW_DUTY_CYCLE = 50
         
         # Determine direction
         if angle_deg > 0:
@@ -256,7 +259,7 @@ class roboMotorControl():
         
 if __name__ == "__main__":
     
-    def key_input(event, rmc:roboMotorControl):
+    def key_input(event, rmc:RobotMotorControl):
     
         print("Key: ", event)
         key_press = event
@@ -291,10 +294,13 @@ if __name__ == "__main__":
         else:
             print("Invalid Keypress")
     
-    rmc = roboMotorControl()
+    
+    imu = IMU()
+    odom = Odometer()
+    rmc = RobotMotorControl(imu=imu, odom=odom)
     while True:
         key_press = input("Select driving mode: ")
-        if key_press == 'p':
+        if key_press == 'q':
             break
         key_input(key_press, rmc)
         print()

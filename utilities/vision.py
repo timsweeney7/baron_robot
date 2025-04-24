@@ -30,9 +30,9 @@ GREEN_UB = np.array([75, 255, 255])
 
 
 # ON THE PORCH ----------------
-RED_LS_LB = np.array([0, 195, 160])
-RED_LS_UB = np.array([25, 255, 255])
-RED_HS_LB = np.array([165, 195, 160])
+RED_LS_LB = np.array([0, 195, 150])
+RED_LS_UB = np.array([15, 255, 255])
+RED_HS_LB = np.array([165, 195, 150])
 RED_HS_UB = np.array([180, 255, 255])
 
 GREEN_LB = np.array([40, 100, 0])
@@ -51,6 +51,9 @@ RGB_GREEN = (0, 255, 0)
 RGB_CYAN = (0, 255, 255)
 RGB_RED = (255, 0, 0)
 GRAND_CHALLENGE_ROW_CROP = 150
+# For distance calculation
+A = 30.2322
+B = 5.2283
 
 
 class Block():
@@ -101,13 +104,12 @@ class Camera():
         return output_frame
     
     
-    def calculate_block_distance(self, block: Block):
+    def calculate_block_distance(self, bounding_height):
         """
-        Calculates the distance a block is away from the robot based on the area of its bouding box
+        Calculates the distance a block is away from the robot based on the height of its bouding box
         @param block: instance of Block class to find distance of
         """
-        ALPHA = 2
-        distance = block.bounding_area * ALPHA
+        distance = A / bounding_height + B
         return distance
     
     
@@ -150,14 +152,14 @@ class Camera():
             output_frame = cv.circle(output_frame, center=center, radius=3, color=color[2], thickness=-1)
             # Find the angle of the robot to the block
             angle = (center[0] - IMAGE_WIDTH/2) * DEG_PER_PIXEL
-            # dist = calculate_block_distance(area)
+            dist = self.calculate_block_distance(h)
             # Determine if the block is knocked over based on aspect ratio
             if w > h:
                 knocked_over = True
             else:
                 knocked_over = False
             # Create a block object to return
-            out_block = Block(color='GREEN', distance_from_robo=0, angle_to_robo=angle, knocked_over=knocked_over, bounding_height=h)
+            out_block = Block(color='GREEN', distance_from_robo=dist, angle_to_robo=angle, knocked_over=knocked_over, bounding_height=h)
             found_blocks.append(out_block)
             
         # Repeat the process for RED blocks.  
@@ -184,14 +186,14 @@ class Camera():
                 output_frame = cv.circle(output_frame, center=center, radius=3, color=RGB_RED, thickness=-1)
                 # Find the angle of the robot to the block
                 angle = (center[0] - IMAGE_WIDTH/2) * DEG_PER_PIXEL
-                # dist = calculate_block_distance(area)
+                dist = self.calculate_block_distance(h)
                 # Determine if the block is knocked over based on aspect ratio
                 if w > h:
                     knocked_over = True
                 else:
                     knocked_over = False
                 # Create a block object to return
-                out_block = Block(color='GREEN', distance_from_robo=0, angle_to_robo=angle, knocked_over=knocked_over, bounding_height=h)
+                out_block = Block(color='GREEN', distance_from_robo=dist, angle_to_robo=angle, knocked_over=knocked_over, bounding_height=h)
                 found_blocks.append(out_block)
             
         return output_frame, found_blocks

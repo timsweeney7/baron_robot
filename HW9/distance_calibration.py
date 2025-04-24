@@ -6,7 +6,7 @@ from utilities.vision import Camera
 import cv2 as cv
 import matplotlib.pyplot as plt
 import numpy as np
-import 
+
 
 cam = Camera()
 heights = []
@@ -42,35 +42,25 @@ plt.title("Distances vs Bounding Box Height")
 plt.xlabel("Distance (meters)")
 
 
-# Define the function to fit (e.g., a polynomial)
-def func(x, a, b):
-    return a * 1/(x) + b
+# Build design matrix: columns are 1/x and 1
+distances = np.array(distances)
+X = np.vstack([1/distances, np.ones_like(distances)]).T
+y = heights
 
-# Sample data
-x_data = np.array([1, 2, 3, 4, 5])
-y_data = np.array([2.1, 3.9, 6.1, 8.2, 12.3])
+# Solve for [a, b] using least squares
+coeffs = np.linalg.lstsq(X, y, rcond=None)[0]
+a, b = coeffs
 
-# Fit the curve
-popt, pcov = curve_fit(func, x_data, y_data)
-
-# Extract the optimized parameters
-a_opt, b_opt, c_opt = popt
-
-# Generate points for the fitted curve
-x_fit = np.linspace(min(x_data), max(x_data), 100)
-y_fit = func(x_fit, a_opt, b_opt, c_opt)
+# Predict values
+x_fit = np.linspace(min(distances), max(distances), 100)
+y_fit = a * (1/x_fit) + b
 
 # Plot the results
-plt.plot(x_data, y_data, 'o', label='data')
+plt.plot(distances, heights, 'o', label='data')
 plt.plot(x_fit, y_fit, '-', label='fit')
+plt.text(x= max(x_fit)-max(x_fit)*0.85, y=max(y_fit)-max(y_fit)*0.85, s=f"y = {a}/x + {b}")
 plt.legend()
 plt.show()
-
-print("Optimized parameters:", popt)
-print("Covariance matrix:", pcov)
-
-
-
 
 
 plt.savefig("distance_area_graph.jpg")
