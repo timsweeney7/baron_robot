@@ -1,3 +1,4 @@
+
 import time
 import pigpio
 import numpy as np
@@ -29,7 +30,7 @@ class PID_Control():
         self.integral = self.integral + error
         I  = self.integral * self.Ki
         mv = mv + P + I
-        print("error: ", error)
+        print("[RMC] error: ", error)
         # print("mv: ", mv)
         return mv
 
@@ -84,7 +85,7 @@ class RobotMotorControl():
         new_duty_cycle = DUTY_CYCLE
         
         start_heading = self.imu.get_heading()
-        print(f"Start heading: {start_heading}")
+        print(f"[RMC] Start heading: {start_heading}")
         print() 
         
         self.odom.reset()
@@ -103,21 +104,19 @@ class RobotMotorControl():
                 if current_heading > 270:
                     current_heading -= 360
                     
-            print(f"Current heading: {current_heading}")
+            print(f"[RMC] Current heading: {current_heading}")
             
             left_ticks, right_ticks = self.odom.get_ticks()
-            print(f"Left ticks: {left_ticks} \t Right ticks: {right_ticks} ")
+            print(f"[RMC] Left ticks: {left_ticks} \t Right ticks: {right_ticks} ")
             if left_ticks > distance_in_ticks or right_ticks > distance_in_ticks:
-                print("here 1")
                 break
             
             new_duty_cycle = pid.update(setpoint=start_heading, 
                                         measurement=current_heading, 
                                         mv=new_duty_cycle)
             
-            print(f"New duty cycle: {new_duty_cycle}")
+            print(f"[RMC] New duty cycle: {new_duty_cycle}")
             self.pi.set_PWM_dutycycle(FORWARD_RIGHT, new_duty_cycle)
-            delay_counter = 0
             print()
         
             time.sleep(0.2)
@@ -175,7 +174,7 @@ class RobotMotorControl():
         start_heading = self.imu.get_heading()  # 0–360
         target_heading = (start_heading + angle_deg) % 360
         if DEBUG:
-            print(f"[Robot Motor Control] Start Heading: {start_heading}", end=" ")
+            print(f"[RMC] Start Heading: {start_heading}", end=" ")
             print(f"\t Target Heading: {target_heading}")
         
         FAST_DUTY_CYCLE = 80
@@ -187,24 +186,8 @@ class RobotMotorControl():
         # Determine direction
         if angle_deg > 0:
             # initialize pwm signal to control motor
-            self.pi.set_PWM_range(BACKWARD_RIGHT, 100)
-            self.pi.set_PWM_range(FORWARD_LEFT, 100)
-            self.pi.set_PWM_frequency(BACKWARD_RIGHT, frequency=100)
-            self.pi.set_PWM_frequency(FORWARD_LEFT, frequency=100)
-            self.pi.set_PWM_dutycycle(BACKWARD_RIGHT, FAST_DUTY_CYCLE)
-            self.pi.set_PWM_dutycycle(FORWARD_LEFT, FAST_DUTY_CYCLE)
-            while True:
-                heading = self.imu.get_heading()
-                if self._within_tolerance(current=heading, target=target_heading, tolerance=25):
-                    self.pi.set_PWM_dutycycle(BACKWARD_RIGHT, SLOW_DUTY_CYCLE)
-                    self.pi.set_PWM_dutycycle(FORWARD_LEFT, SLOW_DUTY_CYCLE)
-                if self._has_passed_clockwise(start_heading, target_heading, heading):
-                    break
-
-        elif angle_deg < 0:
-            # initialize pwm signal to control motor
-            self.pi.set_PWM_range(BACKWARD_LEFT, 100)
             self.pi.set_PWM_range(FORWARD_RIGHT, 100)
+            self.pi.set_PWM_range(BACKWARD_LEFT, 100)
             self.pi.set_PWM_frequency(FORWARD_RIGHT, frequency=100)
             self.pi.set_PWM_frequency(BACKWARD_LEFT, frequency=100)
             self.pi.set_PWM_dutycycle(FORWARD_RIGHT, FAST_DUTY_CYCLE)
@@ -214,13 +197,29 @@ class RobotMotorControl():
                 if self._within_tolerance(current=heading, target=target_heading, tolerance=25):
                     self.pi.set_PWM_dutycycle(FORWARD_RIGHT, SLOW_DUTY_CYCLE)
                     self.pi.set_PWM_dutycycle(BACKWARD_LEFT, SLOW_DUTY_CYCLE)
+                if self._has_passed_clockwise(start_heading, target_heading, heading):
+                    break
+
+        elif angle_deg < 0:
+            # initialize pwm signal to control motor
+            self.pi.set_PWM_range(FORWARD_LEFT, 100)
+            self.pi.set_PWM_range(BACKWARD_RIGHT, 100)
+            self.pi.set_PWM_frequency(BACKWARD_RIGHT, frequency=100)
+            self.pi.set_PWM_frequency(FORWARD_LEFT, frequency=100)
+            self.pi.set_PWM_dutycycle(BACKWARD_RIGHT, FAST_DUTY_CYCLE)
+            self.pi.set_PWM_dutycycle(FORWARD_LEFT, FAST_DUTY_CYCLE)
+            while True:
+                heading = self.imu.get_heading()
+                if self._within_tolerance(current=heading, target=target_heading, tolerance=25):
+                    self.pi.set_PWM_dutycycle(BACKWARD_RIGHT, SLOW_DUTY_CYCLE)
+                    self.pi.set_PWM_dutycycle(FORWARD_LEFT, SLOW_DUTY_CYCLE)
                 if self._has_passed_counterclockwise(start_heading, target_heading, heading):
                     break
 
         self.stop_motion()
         time.sleep(0.3) # wait for robot to settle
         if DEBUG:
-            print(f"[Robot Motor Control] Ending Heading: {self.imu.get_heading()}")
+            print(f"[RMC] Ending Heading: {self.imu.get_heading()}")
         return self.imu.get_heading()
         
     @staticmethod
@@ -258,6 +257,9 @@ class RobotMotorControl():
 
         
 if __name__ == "__main__":
+    
+    from utilities.imu import IMU
+    from utilities.odometry import Odometer
     
     def key_input(event, rmc:RobotMotorControl):
     

@@ -7,6 +7,7 @@ from typing import Tuple, List
 import time
 
 from utilities.odometry import WorldMap
+from utilities.block import Block
 
 
 # ARENA -------------
@@ -21,12 +22,12 @@ CYAN_UB = np.array([105, 255, 255])
 
 
 # HOME ----------------
-RED_LS_LB = np.array([0, 215, 108])
-RED_LS_UB = np.array([10, 255, 255])
+RED_LS_LB = np.array([0, 215, 100])
+RED_LS_UB = np.array([15, 255, 255])
 RED_HS_LB = np.array([165, 200, 105])
 RED_HS_UB = np.array([180, 255, 255])
 
-GREEN_LB = np.array([40, 100, 0])
+GREEN_LB = np.array([40, 80, 100])
 GREEN_UB = np.array([80, 255, 255])
 
 CYAN_LB = np.array([100, 140, 100])
@@ -60,27 +61,6 @@ A = 30.2322
 B = 5.2283
 
 
-class Block():
-    """
-    class for recording properties of blocks identified in a frame
-    """
-    def __init__(self, color:str, distance_from_robo:float, angle_to_robo:float, knocked_over=False, bounding_height=None):
-        """
-        @param color: The color of the block identified
-        @param distance_from_robo: The distance the robot is from the block in meters
-        @param anlge_to_robo: The angle in degrees of the block to the robot
-        """
-        self.color = color
-        self.distance_from_robo = distance_from_robo
-        self.angle_to_robo = angle_to_robo  # degrees
-        self.bounding_height = bounding_height
-        self.knocked_over = knocked_over
-        
-        x = self.distance_from_robo * np.cos(np.deg2rad(self.angle_to_robo))
-        y = self.distance_from_robo * np.sin(np.deg2rad(self.angle_to_robo))
-        self.location = (x, y)
-
-
 class Camera():
 
     def __init__(self, world_map:WorldMap):
@@ -110,7 +90,7 @@ class Camera():
         world_pos, heading = self.world_map.get_robot_position()
         current_time = time.time()
         metadata = {"position": world_pos,
-                    "heading": heading,
+                    "heading_deg": heading,
                     "time": current_time}
         return rgb_image, metadata
     
@@ -130,7 +110,7 @@ class Camera():
         @param block: instance of Block class to find distance of
         @return: Distance of block in meters
         """
-        distance = A / bounding_height + B
+        distance = A / (bounding_height - B)
         return distance
     
     
@@ -172,7 +152,7 @@ class Camera():
             output_frame = cv.rectangle(output_frame, (x, y), (x + w, y + h), color[2], 2)
             output_frame = cv.circle(output_frame, center=center, radius=3, color=color[2], thickness=-1)
             # Find the angle of the robot to the block
-            angle = (center[0] - IMAGE_WIDTH/2) * DEG_PER_PIXEL
+            angle = -1 * (center[0] - IMAGE_WIDTH/2) * DEG_PER_PIXEL
             dist = self.calculate_block_distance(h)
             # Determine if the block is knocked over based on aspect ratio
             if w > h:
@@ -206,7 +186,7 @@ class Camera():
                 output_frame = cv.rectangle(output_frame, (x, y), (x + w, y + h), RGB_RED, 2)
                 output_frame = cv.circle(output_frame, center=center, radius=3, color=RGB_RED, thickness=-1)
                 # Find the angle of the robot to the block
-                angle = (center[0] - IMAGE_WIDTH/2) * DEG_PER_PIXEL
+                angle = -1 * (center[0] - IMAGE_WIDTH/2) * DEG_PER_PIXEL
                 dist = self.calculate_block_distance(h)
                 # Determine if the block is knocked over based on aspect ratio
                 if w > h:

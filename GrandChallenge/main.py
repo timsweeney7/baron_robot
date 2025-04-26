@@ -9,8 +9,8 @@ from utilities.odometry import Odometer, WorldMap
 
 # World Parameters
 # HOME ----------
-MAP_LENGTH = 3
-MAP_WIDTH = 2
+MAP_LENGTH = 2.54
+MAP_WIDTH = 1.829
 
 # set up state machine
 START = 0
@@ -21,20 +21,29 @@ END = 4
 
 CURRENT_STATE = START
 
-world_map = WorldMap(length=MAP_LENGTH, width=MAP_WIDTH)
-cam = Camera(world_map=world_map)
 imu = IMU()
+world_map = WorldMap(length=MAP_LENGTH, width=MAP_WIDTH, imu=imu)
+cam = Camera(world_map=world_map)
 odom = Odometer()
 rmc = RobotMotorControl(imu=imu, odom=odom)
 
 print("[Main] Setup complete")
 
-# Begin state machine
+# Start state machine
 frame, metadata = cam.capture_image()
 cv.imwrite("rgb_image.jpg", cv.cvtColor(frame, cv.COLOR_RGB2BGR))
 frame, blocks = cam.find_blocks(frame=frame)
-cv.imwrite("block_image.jpg", cv.cvtColor(frame, cv.COLOR_RGB2BGR))
 
+# DEBUG
+print()
+for block in blocks:
+    print(block.color)
+    print(block.angle_to_robo)
+    print(block.distance_from_robo)
+    print(block.location)
+    print()
+
+cv.imwrite("block_image.jpg", cv.cvtColor(frame, cv.COLOR_RGB2BGR))
 if len(blocks) == 0:
     print("[Main] No blocks found")
     CURRENT_STATE = SEARCH
@@ -42,7 +51,8 @@ else:
     world_map.update_blocks(blocks, metadata)
     for block in blocks:
         print(f"[Main] {block.color} Block Distance: {block.distance_from_robo} m")
-    
+
+# Enter loop
 while CURRENT_STATE != END:
     print("[Main] Entered main loop")
     CURRENT_STATE = END

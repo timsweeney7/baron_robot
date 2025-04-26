@@ -9,11 +9,6 @@ class IMU():
         
         self.heading = 0
         
-        self._running = False
-        self.lock = threading.Lock()
-        self._T1 = threading.Thread(target=self.start)
-        self._T1.start()
-        
         # connect to the arduino nano
         self.ser = serial.Serial('/dev/ttyUSB0', 115200)
     
@@ -27,6 +22,11 @@ class IMU():
                     continue
                 else:
                     break
+                
+        self._running = False
+        self.lock = threading.Lock()
+        self._T1 = threading.Thread(target=self.start)
+        self._T1.start()
         
     def kill(self):
         self._running = False
@@ -43,6 +43,7 @@ class IMU():
             line = str(self.ser.readline())
             data = re.findall("\d+\.\d+", line)
             _heading = float(data[0])
+            _heading = _heading * -1 % 360
 
             with self.lock:
                 self.heading = _heading
