@@ -4,6 +4,9 @@ import cv2 as cv
 import time
 import numpy as np
 from typing import Tuple, List
+import time
+
+from utilities.odometry import WorldMap
 
 
 # ARENA -------------
@@ -16,23 +19,11 @@ GREEN_UB = np.array([75, 255, 255])
 CYAN_LB = np.array([80, 80, 0])
 CYAN_UB = np.array([105, 255, 255])
 
+
 # HOME ----------------
-RED_LB = np.array([0, 200, 105])
-RED_UB = np.array([13, 255, 255])
-
-GREEN_LB = np.array([60, 50, 50])
-GREEN_UB = np.array([91, 255, 255])
-
-
-# MOM AND DADS ---------------
-GREEN_LB = np.array([40, 50, 50])
-GREEN_UB = np.array([75, 255, 255])
-
-
-# ON THE PORCH ----------------
-RED_LS_LB = np.array([0, 195, 150])
-RED_LS_UB = np.array([15, 255, 255])
-RED_HS_LB = np.array([165, 195, 150])
+RED_LS_LB = np.array([0, 215, 108])
+RED_LS_UB = np.array([10, 255, 255])
+RED_HS_LB = np.array([165, 200, 105])
 RED_HS_UB = np.array([180, 255, 255])
 
 GREEN_LB = np.array([40, 100, 0])
@@ -40,6 +31,19 @@ GREEN_UB = np.array([80, 255, 255])
 
 CYAN_LB = np.array([100, 140, 100])
 CYAN_UB = np.array([110, 255, 255])
+
+
+# ON THE PORCH ----------------
+# RED_LS_LB = np.array([0, 195, 150])
+# RED_LS_UB = np.array([15, 255, 255])
+# RED_HS_LB = np.array([165, 195, 150])
+# RED_HS_UB = np.array([180, 255, 255])
+
+# GREEN_LB = np.array([40, 100, 0])
+# GREEN_UB = np.array([80, 255, 255])
+
+# CYAN_LB = np.array([100, 140, 100])
+# CYAN_UB = np.array([110, 255, 255])
 
 
 # ------------------------------
@@ -68,15 +72,24 @@ class Block():
         """
         self.color = color
         self.distance_from_robo = distance_from_robo
-        self.angle_to_robo = angle_to_robo
+        self.angle_to_robo = angle_to_robo  # degrees
         self.bounding_height = bounding_height
         self.knocked_over = knocked_over
+        
+        x = self.distance_from_robo * np.cos(np.deg2rad(self.angle_to_robo))
+        y = self.distance_from_robo * np.sin(np.deg2rad(self.angle_to_robo))
+        self.location = (x, y)
 
 
 class Camera():
 
-    def __init__(self):
-        # configure the camera
+    def __init__(self, world_map:WorldMap):
+        """
+        Configures the camera
+        @param world_map: the world map the robot is operating in
+        """
+        self.world_map = world_map
+        
         self.picam2 = Picamera2()
         config = self.picam2.create_still_configuration(main={"size":(808,606)},
                                                 transform=libcamera.Transform(hflip=1, vflip=1))
@@ -90,9 +103,16 @@ class Camera():
     def capture_image(self):
         """
         Captures an image in RGB format and returns it as a numpy array
+        @return rgb_image: image captured
+        @return metadata: data associated with the image ['world_pos', 'orientation']
         """
         rgb_image = self.picam2.capture_array()
-        return rgb_image
+        world_pos, heading = self.world_map.get_robot_position()
+        current_time = time.time()
+        metadata = {"position": world_pos,
+                    "heading": heading,
+                    "time": current_time}
+        return rgb_image, metadata
     
     def crop_image(self, frame, row):
         """
@@ -108,6 +128,7 @@ class Camera():
         """
         Calculates the distance a block is away from the robot based on the height of its bouding box
         @param block: instance of Block class to find distance of
+        @return: Distance of block in meters
         """
         distance = A / bounding_height + B
         return distance
@@ -116,7 +137,7 @@ class Camera():
     def find_blocks(self, frame) -> Tuple[np.array, List[Block]]:
         """
         Searches the image for red, green, and cyan blocks.  Adds a bounding box around each one
-        and marks the center
+        and marks the center.  Determines block position in robot frame
         
         @param frame: image to be searched in RGB format
         
@@ -130,7 +151,7 @@ class Camera():
         output_frame = cv.line(frame, pt1=(int(IMAGE_WIDTH/2), 0), pt2=(int(IMAGE_WIDTH/2), IMAGE_HEIGHT), color=(0,0,0))
         
         # Find CYAN and GREEN blocks
-        for color in [(GREEN_LB, GREEN_UB, RGB_GREEN), (CYAN_LB, CYAN_UB, RGB_CYAN)]:
+        for color in [(GREEN_LB, GREEN_UB, RGB_GREEN, 'GREEN'), (CYAN_LB, CYAN_UB, RGB_CYAN, 'CYAN')]:
             # create mask 
             mask = cv.inRange(hsv_frame, color[0], color[1])
             # find contours
@@ -159,7 +180,7 @@ class Camera():
             else:
                 knocked_over = False
             # Create a block object to return
-            out_block = Block(color='GREEN', distance_from_robo=dist, angle_to_robo=angle, knocked_over=knocked_over, bounding_height=h)
+            out_block = Block(color=color[3], distance_from_robo=dist, angle_to_robo=angle, knocked_over=knocked_over, bounding_height=h)
             found_blocks.append(out_block)
             
         # Repeat the process for RED blocks.  
@@ -193,7 +214,7 @@ class Camera():
                 else:
                     knocked_over = False
                 # Create a block object to return
-                out_block = Block(color='GREEN', distance_from_robo=dist, angle_to_robo=angle, knocked_over=knocked_over, bounding_height=h)
+                out_block = Block(color='RED', distance_from_robo=dist, angle_to_robo=angle, knocked_over=knocked_over, bounding_height=h)
                 found_blocks.append(out_block)
             
         return output_frame, found_blocks
