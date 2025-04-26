@@ -32,25 +32,14 @@ print("[Main] Setup complete")
 # Start state machine
 frame, metadata = cam.capture_image()
 cv.imwrite("rgb_image.jpg", cv.cvtColor(frame, cv.COLOR_RGB2BGR))
-frame, blocks = cam.find_blocks(frame=frame)
-
-# DEBUG
-print()
-for block in blocks:
-    print(block.color)
-    print(block.angle_to_robo)
-    print(block.distance_from_robo)
-    print(block.location)
-    print()
+frame, blocks = cam.find_blocks(frame=frame, metadata=metadata)
 
 cv.imwrite("block_image.jpg", cv.cvtColor(frame, cv.COLOR_RGB2BGR))
 if len(blocks) == 0:
     print("[Main] No blocks found")
     CURRENT_STATE = SEARCH
 else:
-    world_map.update_blocks(blocks, metadata)
-    for block in blocks:
-        print(f"[Main] {block.color} Block Distance: {block.distance_from_robo} m")
+    world_map.update_blocks(blocks)
 
 # Enter loop
 while CURRENT_STATE != END:

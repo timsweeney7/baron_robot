@@ -42,7 +42,7 @@ class Odometer():
 
     def start(self):
         
-        print("[Odometer] Started thread")
+        print("[ODOMETER] Started thread")
         self._running = True
         buttonBR = np.int(0)
         buttonFL = np.int(0)
@@ -97,54 +97,47 @@ class Odometer():
 class WorldMap():
     
     def __init__(self, length, width, imu:IMU):
-        self.objects = []   # list of x,y locations of objects in the world
+        self.blocks = []   # list of x,y locations of objects in the world
         self.bounds = (length, width)   # list of x,y locations for the bounds of the world
         self.robot_position = (0.4826, 0.25)
         self.imu = imu
         
     def get_robot_position(self):
         """ Returns the position and orientation of the robot """
+        
+        # For DEBUG ONLY
+        if self.imu is None:
+            print("[ODOMETER] WORLD MAP IS IN DEBUG MODE !!!")
+            return self.robot_position, 0
+        
         return self.robot_position, self.imu.get_heading()
     
-    def update_blocks(self, blocks:List[Block], metadata):
+    def update_blocks(self, blocks:List[Block]):
         """ 
         Updates the location of blocks in the world map based on the metadata provided
         @param blocks: List of block positions from the robot frame of reference
         """
         for block in blocks:
-            block_global = self.translate_to_world_frame(point= block.location,
-                                                         angle= metadata['heading_deg'],
-                                                         robo_pos= metadata['position'])
-            block_global_x = block_global[0,0]
-            block_global_y = block_global[1,0]
-            self.objects.append((block_global_x, block_global_y, block.color))
-            
-    def translate_to_world_frame(self, point, angle, robo_pos):
-        px, py = point
-        rx, ry = robo_pos
-        P_robo = np.array([[rx],
-                           [ry],
-                           [1]])
-        T = np.array([[np.cos(angle), -1*np.sin(angle), px],
-                      [np.sin(angle), np.cos(angle), py],
-                      [0,  0,   1]])
-        return T @ P_robo
+            self.blocks.append(block)
+    
+    
+    def get_blocks(self):
+        return
     
     def draw_map(self):
-        
-        ax = plt.gca()
+        fig, ax = plt.subplots()   # << New figure and axes each time
         ax.set_aspect('equal')
-        
+
         # Draw the bounds of the map
         width, height = self.bounds
         arena = patches.Rectangle((0, 0), width=width, height=height, facecolor='none', edgecolor='black')
         ax.add_patch(arena)
-        
+
         # Draw the robot
         location, heading_deg = self.get_robot_position()
         robo_x, robo_y = location
-        triangle = np.array([   # homogeneous coordinates
-            [0.0762, 0, 1],     # Robot origin is at the base of the claw
+        triangle = np.array([
+            [0.0762, 0, 1],
             [-0.254, 0.1016, 1],
             [-0.254, -0.1016, 1]
         ])
@@ -155,25 +148,26 @@ class WorldMap():
             [s,  c, robo_y],
             [0,  0,       1]
         ])
-        triangle = (T @ triangle.T).T[:, :2]  # Drop the homogeneous coordinate
+        triangle = (T @ triangle.T).T[:, :2]
         robot_patch = patches.Polygon(triangle, closed=True, color='black')
         ax.add_patch(robot_patch)
-        
-        # Draw the blocks
-        # Unpack into separate x and y lists
-        
-        for block in self.objects:
-            x = block[0]
-            y = block[1]
-            color = block[2]
-            plt.scatter(x, y, c=color)
-            circle = plt.Circle((x, y), KEEPOUT, color=color, fill=False, clip_on=True)
+
+        # Draw the blocks        
+        for block in self.blocks:
+            x, y = block.location
+            ax.scatter(x, y, c=block.color)
+            circle = plt.Circle((x, y), KEEPOUT, color=block.color, fill=False, clip_on=True)
             ax.add_patch(circle)
-            
-        plt.title("World Map")
-        plt.xlim(-1*width*0.02, width*1.02)
-        plt.ylim(-1*height*0.02, height*1.02)
-        plt.xlabel("Meters")
+
+        ax.set_title("World Map")
+        ax.set_xlim(-1*width*0.02, width*1.02)
+        ax.set_ylim(-1*height*0.02, height*1.02)
+        ax.set_xlabel("Meters")
+
+        ax.set_axisbelow(True)
+        ax.grid(True, which='both', linestyle='--', linewidth=0.5)
+
         plt.savefig("world_map.jpg")
-        plt.grid(True)
-        pass
+        plt.show()
+
+        plt.close(fig)  # << clean up the figure from memory if you're doing many plots

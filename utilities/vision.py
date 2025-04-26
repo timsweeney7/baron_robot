@@ -114,10 +114,10 @@ class Camera():
         return distance
     
     
-    def find_blocks(self, frame) -> Tuple[np.array, List[Block]]:
+    def find_blocks(self, frame, metadata) -> Tuple[np.array, List[Block]]:
         """
         Searches the image for red, green, and cyan blocks.  Adds a bounding box around each one
-        and marks the center.  Determines block position in robot frame
+        and marks the center.  Determines block position in world frame
         
         @param frame: image to be searched in RGB format
         
@@ -154,13 +154,20 @@ class Camera():
             # Find the angle of the robot to the block
             angle = -1 * (center[0] - IMAGE_WIDTH/2) * DEG_PER_PIXEL
             dist = self.calculate_block_distance(h)
+            # Determine location locally
+            x_block = dist * np.cos(np.deg2rad(angle))
+            y_block = dist * np.sin(np.deg2rad(angle))
+            # Determine location in world frame
+            location = translate_to_world_frame((x_block, y_block), 
+                                                metadata["heading_deg"], 
+                                                metadata["position"])
             # Determine if the block is knocked over based on aspect ratio
             if w > h:
                 knocked_over = True
             else:
                 knocked_over = False
             # Create a block object to return
-            out_block = Block(color=color[3], distance_from_robo=dist, angle_to_robo=angle, knocked_over=knocked_over, bounding_height=h)
+            out_block = Block(color=color[3], location=location, knocked_over=knocked_over, bounding_height=h)
             found_blocks.append(out_block)
             
         # Repeat the process for RED blocks.  
@@ -188,17 +195,36 @@ class Camera():
                 # Find the angle of the robot to the block
                 angle = -1 * (center[0] - IMAGE_WIDTH/2) * DEG_PER_PIXEL
                 dist = self.calculate_block_distance(h)
+                # Determine location locally
+                x_block = dist * np.cos(np.deg2rad(angle))
+                y_block = dist * np.sin(np.deg2rad(angle))
+                # Determine location in world frame
+                location = translate_to_world_frame((x_block, y_block), 
+                                                    metadata["heading_deg"], 
+                                                    metadata["position"])
                 # Determine if the block is knocked over based on aspect ratio
                 if w > h:
                     knocked_over = True
                 else:
                     knocked_over = False
                 # Create a block object to return
-                out_block = Block(color='RED', distance_from_robo=dist, angle_to_robo=angle, knocked_over=knocked_over, bounding_height=h)
+                out_block = Block(color="RED", location=location, knocked_over=knocked_over, bounding_height=h)
                 found_blocks.append(out_block)
             
         return output_frame, found_blocks
 
+
+def translate_to_world_frame(point, robo_heading, robo_pos):
+        px, py = point
+        rx, ry = robo_pos
+        P_robo = np.array([[rx],
+                           [ry],
+                           [1]])
+        T = np.array([[np.cos(robo_heading), -1*np.sin(robo_heading), px],
+                      [np.sin(robo_heading), np.cos(robo_heading), py],
+                      [0,  0,   1]])
+        vector = T @ P_robo
+        return vector[0,0], vector[1,0]
         
         
         
