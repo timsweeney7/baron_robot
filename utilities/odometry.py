@@ -122,7 +122,7 @@ class WorldMap():
     
     
     def get_blocks(self):
-        return
+        return self.blocks
     
     def draw_map(self):
         fig, ax = plt.subplots()   # << New figure and axes each time
