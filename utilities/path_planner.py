@@ -26,15 +26,19 @@ def _heuristic_calc(start, end):
 
 class PathPlanner():
         
-    def __init__(self, world_map:WorldMap):
-        "create an instance of the planner"
-        self.wm = world_map
-        
-        
+    
+            
     def select_goal(self, blocks):
         "Given a list of blocks, select the correct block"
         # find the next block that is closest to use
-        return
+        for block in blocks:
+            if block.color == 'RED':
+                goal = block.location
+                return
+        else:
+            print("No RED block found")
+            return None
+        
     
     def reconstruct_path(node):
         path = []
@@ -43,33 +47,23 @@ class PathPlanner():
             node = node.parent
         return path[::-1]  # Reverse
     
-    def _get_neighbors(self, node:Node, goal):
-        """ Gets all of the neighboring nodes of a given node """
+    def _get_neighbors(self, node: Node):
+        """ Gets all of the neighboring positions and their move costs """
         grid_size = 0.1
-        x, y  = node.position
-        cost = node.cost_to_come
-        
-        # straight
-        next_loc = (x+grid_size, y)
-        n1 = Node(next_loc, cost+1, _heuristic_calc(next_loc, goal), node)
-        next_loc = (x, y+grid_size)
-        n2 = Node(next_loc, cost+1, _heuristic_calc(next_loc, goal), node)
-        next_loc = (x-grid_size, y)
-        n3 = Node(next_loc, cost+1, _heuristic_calc(next_loc, goal), node)
-        next_loc = (x, y-grid_size)
-        n4 = Node(next_loc, cost+1, _heuristic_calc(next_loc, goal), node)
-        
-        # angle
-        next_loc = (x+grid_size, y+grid_size)
-        n5 = Node(next_loc, cost+np.sqrt(2), _heuristic_calc(next_loc, goal), node)
-        next_loc = (x-grid_size, y+grid_size)
-        n6 = Node(next_loc, cost+np.sqrt(2), _heuristic_calc(next_loc, goal), node)
-        next_loc = (x-grid_size, y-grid_size)
-        n7 = Node(next_loc, cost+np.sqrt(2), _heuristic_calc(next_loc, goal), node)
-        next_loc = (x+grid_size, y-grid_size)
-        n8 = Node(next_loc, cost+np.sqrt(2), _heuristic_calc(next_loc, goal), node)
-        
-        return [n1, n2, n3, n4, n5, n6, n7, n8]
+        x, y = node.position
+
+        neighbors = [
+            ((x + grid_size, y), 1),  # straight
+            ((x, y + grid_size), 1),
+            ((x - grid_size, y), 1),
+            ((x, y - grid_size), 1),
+            ((x + grid_size, y + grid_size), np.sqrt(2)),  # diagonal
+            ((x - grid_size, y + grid_size), np.sqrt(2)),
+            ((x - grid_size, y - grid_size), np.sqrt(2)),
+            ((x + grid_size, y - grid_size), np.sqrt(2)),
+        ]
+
+        return neighbors
         
     
     def astar(self, start, goal):
@@ -85,16 +79,16 @@ class PathPlanner():
             
             closed_set.add(current.position)
 
-            for neighbor_pos, move_cost in neighbors_fn(current.position):
+            for neighbor_pos, move_cost in self._get_neighbors(current.position):
                 if neighbor_pos in closed_set:
                     continue
 
                 new_cost_to_come = current.cost_to_come + move_cost
                 neighbor_node = Node(
-                    neighbor_pos,
-                    new_cost_to_come,
-                    new_cost_to_come + _heuristic_calc(neighbor_pos),
-                    current
+                    position=neighbor_pos,
+                    cost_to_come=new_cost_to_come,
+                    estimated_total_cost=new_cost_to_come + _heuristic_calc(neighbor_pos),
+                    parent=current
                 )
 
                 heapq.heappush(open_heap, neighbor_node)
@@ -120,10 +114,16 @@ if __name__ == "__main__":
     MAP_WIDTH = 1.829
     wm = WorldMap(MAP_LENGTH, MAP_WIDTH, None)
     
-    
     wm.update_blocks([block1, block2, block3])
     blocks = wm.get_blocks()
     
-    path_planner = PathPlanner(world_map=wm)
+    path_planner = PathPlanner()
+    goal = path_planner.select_goal(blocks)
+    start = (0.25, 0.25)
+    path = path_planner.astar(start, goal)
+    if path:
+        print("Path found:", path)
+    else:
+        print("No path found")
     
     print(path_planner.ORDER)

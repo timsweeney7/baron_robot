@@ -4,3 +4,4 @@
 *.h264
 .DS_Store
 utilities/__pycache__
+.vscode/
