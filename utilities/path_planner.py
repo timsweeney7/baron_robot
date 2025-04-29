@@ -31,6 +31,7 @@ class PathPlanner():
         self.MAX_WIDTH, self.MAX_HEIGHT = world_map.bounds
         self.blocks = world_map.get_blocks() if world_map else []
         self.target_block = None
+        self.GRID_SIZE = 0.15
         
         
     def select_goal(self):
@@ -67,18 +68,18 @@ class PathPlanner():
     
     def _get_neighbors(self, node: Node):
         """ Gets all of the neighboring positions and their move costs """
-        grid_size = 0.25
+        
         x, y = node.position
 
         neighbors = [
-            ((x + grid_size, y), 1),  # straight
-            ((x, y + grid_size), 1),
-            ((x - grid_size, y), 1),
-            ((x, y - grid_size), 1),
-            ((x + grid_size, y + grid_size), np.sqrt(2)),  # diagonal
-            ((x - grid_size, y + grid_size), np.sqrt(2)),
-            ((x - grid_size, y - grid_size), np.sqrt(2)),
-            ((x + grid_size, y - grid_size), np.sqrt(2)),
+            ((x + self.GRID_SIZE, y), 1),  # straight
+            ((x, y + self.GRID_SIZE), 1),
+            ((x - self.GRID_SIZE, y), 1),
+            ((x, y - self.GRID_SIZE), 1),
+            ((x + self.GRID_SIZE, y + self.GRID_SIZE), np.sqrt(2)),  # diagonal
+            ((x - self.GRID_SIZE, y + self.GRID_SIZE), np.sqrt(2)),
+            ((x - self.GRID_SIZE, y - self.GRID_SIZE), np.sqrt(2)),
+            ((x + self.GRID_SIZE, y - self.GRID_SIZE), np.sqrt(2)),
         ]
         
         # Filter out neighbors that are not valid moves

@@ -78,8 +78,8 @@ class Odometer():
         """
         rotations = (dist) * (1/(2*np.pi*0.0325))
         ticks = rotations * 20
-        print("wheel rotations = ", rotations)
-        print("Estimated Ticks = ", ticks)
+        # print("[ODOMETER] wheel rotations = ", rotations)
+        print("[ODOMETER] Estimated Ticks = ", ticks)
         return  ticks 
 
     @staticmethod
@@ -187,7 +187,7 @@ class WorldMap():
         for i in range(len(path)-1):
             x1, y1 = path[i]
             x2, y2 = path[i+1]
-            self.axis.plot([x1, x2], [y1, y2], color='blue', linewidth=2)
+            self.axis.plot([x1, x2], [y1, y2], color='gray', linewidth=2)
         
         plt.savefig("planned_path.jpg")
    

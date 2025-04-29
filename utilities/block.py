@@ -4,7 +4,7 @@ class Block():
     """
     class for recording properties of blocks identified in a frame
     """
-    def __init__(self, color:str, location, knocked_over=False, bounding_height=None):
+    def __init__(self, color:str, location, knocked_over=False, bounding_height=None, angle_to_robo=None):
 
         """
         @param color: The color of the block identified
@@ -15,3 +15,4 @@ class Block():
         self.location = location
         self.bounding_height = bounding_height
         self.knocked_over = knocked_over        
+        self.angle_to_robo = angle_to_robo

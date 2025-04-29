@@ -52,6 +52,7 @@ while CURRENT_STATE != END:
             world_map.update_blocks(blocks)
             world_map.draw_map()
             CURRENT_STATE = PLAN_PATH
+        rmc.open_gripper()
     
     elif CURRENT_STATE == PLAN_PATH:
         print("[Main] Planning path")
@@ -74,15 +75,20 @@ while CURRENT_STATE != END:
         
         block_collected = False
         while not block_collected:
-            rgb_image = cam.capture_image()
-            blocked_image, blocks  = cam.find_blocks(rgb_image)
-            if blocks == None:
+            rgb_image, metadata = cam.capture_image()
+            cv.imwrite("rgb_image.jpg", cv.cvtColor(rgb_image, cv.COLOR_RGB2BGR))
+            blocked_image, blocks  = cam.find_blocks(rgb_image, metadata)
+            print(blocks) # ----------------------
+            cv.imwrite("block_image.jpg", cv.cvtColor(blocked_image, cv.COLOR_RGB2BGR))
+            if len(blocks) == 0:
                 print("[MAIN] NO BLOCK DETECTED!")
                 rmc.rotate_by(15)
             if blocks[0].knocked_over is True:
                 rmc.close_gripper()
+                block_collected=True
                 print("[MAIN] Block collected!")
                 CURRENT_STATE = DELIVER_BLOCK
+                continue
             # Get block heading and orient to it
             rotation_angle = blocks[0].angle_to_robo
             rmc.rotate_by(rotation_angle)
@@ -91,12 +97,12 @@ while CURRENT_STATE != END:
                 
     elif CURRENT_STATE == DELIVER_BLOCK:
         print("[MAIN] Delivering block")
-        CURRENT_STATE == END
+        CURRENT_STATE = END
         
         
     elif CURRENT_STATE == SEARCH:
         print("[MAIN] Entered Search Mode")
-        CURRENT_STATE == END
+        CURRENT_STATE = END
         
         
 # plot the output data

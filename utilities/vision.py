@@ -167,7 +167,11 @@ class Camera():
             else:
                 knocked_over = False
             # Create a block object to return
-            out_block = Block(color=color[3], location=location, knocked_over=knocked_over, bounding_height=h)
+            out_block = Block(color=color[3], 
+                              location=location, 
+                              knocked_over=knocked_over, 
+                              bounding_height=h,
+                              angle_to_robo=angle)
             found_blocks.append(out_block)
             
         # Repeat the process for RED blocks.  
@@ -208,7 +212,11 @@ class Camera():
                 else:
                     knocked_over = False
                 # Create a block object to return
-                out_block = Block(color="RED", location=location, knocked_over=knocked_over, bounding_height=h)
+                out_block = Block(color="RED", 
+                                  location=location, 
+                                  knocked_over=knocked_over, 
+                                  bounding_height=h,
+                                  angle_to_robo=angle)
                 found_blocks.append(out_block)
             
         return output_frame, found_blocks
