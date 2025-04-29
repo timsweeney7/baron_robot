@@ -66,7 +66,7 @@ class RobotMotorControl():
         self.odom = odom
         
         # Create a variable to store the path
-        self.path = []
+        self.movements = []
         
     def stop_motion(self):
         # set all pins low
@@ -83,6 +83,8 @@ class RobotMotorControl():
         Returns a list of angles and disstances in alternating order, starting with the angle.
         For example: [angle1, distance1, angle2, distance2, ...]
         """
+        self.movements = []
+        
         if len(path) < 2:
             print("[RMC] Path is too short")
             return False
@@ -90,26 +92,54 @@ class RobotMotorControl():
         inc = path[1]
         
         # heading = self.imu.get_heading()
-        angle = np.arctan2(inc[1]-base[1], inc[0]-base[0])
-        rotation = np.degrees(rotation)
-        self.path.append(rotation)
+        angle = np.degrees(np.arctan2(inc[1]-base[1], inc[0]-base[0]))
+        # print(angle) 
+        self.movements.append(("Angle", angle))
         distance = np.sqrt((inc[0]-base[0])**2 + (inc[1]-base[1])**2)
+        # print(distance)
         # loop over the path converting to angles and distances
         # if the next point has the same heading as the previous point,
         # then we can just add the distance
         for i in range(2, len(path)):
             check = path[i]
-            angle_check = np.arctan2(check[1]-inc[1], check[0]-inc[0])
+            angle_check = np.degrees(np.arctan2(check[1]-inc[1], check[0]-inc[0]))
+            # print(f"Angle check: {angle_check}")
             if angle_check == angle:
+                # print("[RMC] Same angle as before")
                 distance += np.sqrt((check[0]-inc[0])**2 + (check[1]-inc[1])**2)
+                # print(f"Distance: {distance}")
             else:
-                self.path.append(distance)
-                self.path.append(angle_check)
+                self.movements.append(("Distance", distance))
+                # print("[RMC] New angle")
+                self.movements.append(("Angle", angle_check))
                 distance = np.sqrt((check[0]-inc[0])**2 + (check[1]-inc[1])**2)
+                
+                # print(f"Distance: {distance}")
                 angle = angle_check
                 inc = check
-        self.path.append(distance)
-        return
+        self.movements.append(("Distance", distance))
+        
+        print("[RMC] Movements set")
+        for i in self.movements:
+            print(f"\t{i}")
+        
+    def drive_path(self):
+        """
+        Drives the robot along the loaded path.
+        """
+        for step in self.movements:
+            if step[0] == 'Angle':
+                angle = step[1]
+                self.orient_to(angle)
+                print(f"[RMC] Angle: {angle}")
+            elif step[0] == 'Distance':
+                distance = step[1]
+                self.forward(distance)
+                print(f"Distance: {distance}")
+            
+        # stop motion
+        self.stop_motion()
+        time.sleep(0.4)
         
         
     def forward(self, distance):
@@ -125,7 +155,7 @@ class RobotMotorControl():
         new_duty_cycle = DUTY_CYCLE
         
         start_heading = self.imu.get_heading()
-        print(f"[RMC] Start heading: {start_heading}")
+        print(f"[RMC][Forward] Start heading: {start_heading}")
         print() 
         
         self.odom.reset()
@@ -144,10 +174,10 @@ class RobotMotorControl():
                 if current_heading > 270:
                     current_heading -= 360
                     
-            print(f"[RMC] Current heading: {current_heading}")
+            # print(f"[RMC][Forward] Current heading: {current_heading}")
             
             left_ticks, right_ticks = self.odom.get_ticks()
-            print(f"[RMC] Left ticks: {left_ticks} \t Right ticks: {right_ticks} ")
+            # print(f"[RMC] Left ticks: {left_ticks} \t Right ticks: {right_ticks} ")
             if left_ticks > distance_in_ticks or right_ticks > distance_in_ticks:
                 break
             
@@ -155,7 +185,7 @@ class RobotMotorControl():
                                         measurement=current_heading, 
                                         mv=new_duty_cycle)
             
-            print(f"[RMC] New duty cycle: {new_duty_cycle}")
+            print(f"[RMC][Forward] New duty cycle: {new_duty_cycle}")
             self.pi.set_PWM_dutycycle(FORWARD_RIGHT, new_duty_cycle)
             print()
         

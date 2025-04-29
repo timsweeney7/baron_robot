@@ -37,10 +37,11 @@ class PathPlanner():
         """ Selects the next destination for the robot to move towards """
         for block in self.blocks:
             if block.color == 'RED':
+                print(f"[PLAN] Found RED block at {block.location}")
                 self.target_block = block
                 return True
         else:
-            print("No RED block found")
+            print("[PLAN] No RED block found")
             return False
         
     
@@ -103,6 +104,7 @@ class PathPlanner():
             current = heapq.heappop(open_heap)
                         
             if self._close_together(current.position, goal):
+                print("[PLAN] Found path to goal")
                 return self.reconstruct_path(current)
             
             closed_set.add(current.position)
@@ -122,7 +124,7 @@ class PathPlanner():
                 heapq.heappush(open_heap, neighbor_node)
             counter += 1
             if counter > 1_000_000:
-                print("Too many iterations, stopping search")
+                print("[PLAN] Too many iterations, stopping search")
                 break
         return None  # No path found
 
@@ -134,6 +136,7 @@ if __name__ == "__main__":
     
     from utilities.RobotMotorControl import RobotMotorControl
     from utilities.imu import IMU
+    from utilities.odometry import Odometer
     
     block1 = Block(color="GREEN", 
                    location=(1.65, 0.495))
@@ -157,16 +160,19 @@ if __name__ == "__main__":
     path = path_planner.astar(start, path_planner.target_block.location)
     if path:
         print("Path found:")
-        for step in path:
-            print(step)
+        for i in path:
+            print(i)
         print("Path length:", len(path))
     else:
         print("No path found")
     
+    print()
+    
     imu = IMU()
-    rmc = RobotMotorControl(imu=imu)
+    rmc = RobotMotorControl(imu=imu, odom=Odometer)
     rmc.set_path(path)
-    print("\n".join(rmc.path))
+    # for i in rmc.path:
+    #     print(i)
     
     wm.draw_map()
     wm.draw_path_on_map(path)

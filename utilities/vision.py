@@ -11,40 +11,40 @@ from utilities.block import Block
 
 
 # ARENA -------------
-RED_LB = np.array([0, 80, 0])
-RED_UB = np.array([10, 255, 255])
+# RED_LB = np.array([0, 80, 0])
+# RED_UB = np.array([10, 255, 255])
 
-GREEN_LB = np.array([25, 80, 0])
-GREEN_UB = np.array([75, 255, 255])
+# GREEN_LB = np.array([25, 80, 0])
+# GREEN_UB = np.array([75, 255, 255])
 
-CYAN_LB = np.array([80, 80, 0])
-CYAN_UB = np.array([105, 255, 255])
+# CYAN_LB = np.array([80, 80, 0])
+# CYAN_UB = np.array([105, 255, 255])
 
 
 # HOME ----------------
-RED_LS_LB = np.array([0, 215, 100])
-RED_LS_UB = np.array([15, 255, 255])
-RED_HS_LB = np.array([165, 200, 105])
-RED_HS_UB = np.array([180, 255, 255])
-
-GREEN_LB = np.array([40, 80, 100])
-GREEN_UB = np.array([80, 255, 255])
-
-CYAN_LB = np.array([100, 140, 100])
-CYAN_UB = np.array([110, 255, 255])
-
-
-# ON THE PORCH ----------------
-# RED_LS_LB = np.array([0, 195, 150])
+# RED_LS_LB = np.array([0, 215, 100])
 # RED_LS_UB = np.array([15, 255, 255])
-# RED_HS_LB = np.array([165, 195, 150])
+# RED_HS_LB = np.array([165, 200, 105])
 # RED_HS_UB = np.array([180, 255, 255])
 
-# GREEN_LB = np.array([40, 100, 0])
+# GREEN_LB = np.array([40, 80, 100])
 # GREEN_UB = np.array([80, 255, 255])
 
 # CYAN_LB = np.array([100, 140, 100])
 # CYAN_UB = np.array([110, 255, 255])
+
+
+# ON THE PORCH ----------------
+RED_LS_LB = np.array([0, 195, 100])
+RED_LS_UB = np.array([15, 255, 255])
+RED_HS_LB = np.array([165, 195, 150])
+RED_HS_UB = np.array([180, 255, 255])
+
+GREEN_LB = np.array([40, 100, 0])
+GREEN_UB = np.array([80, 255, 255])
+
+CYAN_LB = np.array([100, 140, 100])
+CYAN_UB = np.array([110, 255, 255])
 
 
 # ------------------------------

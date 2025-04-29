@@ -50,29 +50,55 @@ while CURRENT_STATE != END:
             print("[Main] No blocks found")
         else:
             world_map.update_blocks(blocks)
+            world_map.draw_map()
             CURRENT_STATE = PLAN_PATH
     
     elif CURRENT_STATE == PLAN_PATH:
         print("[Main] Planning path")
         planner.select_goal()
         path = planner.astar(start=world_map.get_robot_position()[0], goal=planner.target_block.location)
+        if path is None:
+            print("[Main] No path found")
+        world_map.draw_path_on_map(path)
         rmc.set_path(path)
         CURRENT_STATE = DRIVE_PATH
     
     elif CURRENT_STATE == DRIVE_PATH:
         print("[Main] Driving path")
         rmc.drive_path()
-        if rmc.is_path_complete():
-            CURRENT_STATE = COLLECT_BLOCK
-            print("[Main] Path complete")
+        CURRENT_STATE = COLLECT_BLOCK
+        print("[Main] Path complete")
 
     elif CURRENT_STATE == COLLECT_BLOCK:
         print("[Main] Collecting block")
         
+        block_collected = False
+        while not block_collected:
+            rgb_image = cam.capture_image()
+            blocked_image, blocks  = cam.find_blocks(rgb_image)
+            if blocks == None:
+                print("[MAIN] NO BLOCK DETECTED!")
+                rmc.rotate_by(15)
+            if blocks[0].knocked_over is True:
+                rmc.close_gripper()
+                print("[MAIN] Block collected!")
+                CURRENT_STATE = DELIVER_BLOCK
+            # Get block heading and orient to it
+            rotation_angle = blocks[0].angle_to_robo
+            rmc.rotate_by(rotation_angle)
+            # Roll Based on area
+            rmc.forward(0.1)
+                
     elif CURRENT_STATE == DELIVER_BLOCK:
-        print("[Main] Delivering block")
+        print("[MAIN] Delivering block")
+        CURRENT_STATE == END
         
-
+        
+    elif CURRENT_STATE == SEARCH:
+        print("[MAIN] Entered Search Mode")
+        CURRENT_STATE == END
+        
+        
 # plot the output data
 world_map.draw_map()
 

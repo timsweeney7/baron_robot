@@ -189,5 +189,5 @@ class WorldMap():
             x2, y2 = path[i+1]
             self.axis.plot([x1, x2], [y1, y2], color='blue', linewidth=2)
         
-        plt.show()
+        plt.savefig("planned_path.jpg")
    
