@@ -49,6 +49,7 @@ class IMU():
                 self.heading = _heading
         
     def get_heading(self):
+        """ Returns the current heading of the robot in degrees """
         with self.lock:
             return self.heading
         

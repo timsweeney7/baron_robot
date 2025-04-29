@@ -65,12 +65,52 @@ class RobotMotorControl():
         # Create an odometer
         self.odom = odom
         
+        # Create a variable to store the path
+        self.path = []
+        
     def stop_motion(self):
         # set all pins low
         self.pi.write(FORWARD_LEFT, False)
         self.pi.write(BACKWARD_LEFT, False)
         self.pi.write(BACKWARD_RIGHT, False)
         self.pi.write(FORWARD_RIGHT, False)
+        
+        
+    def set_path(self, path):
+        """
+        Sets the path for the robot to follow.
+        
+        Returns a list of angles and disstances in alternating order, starting with the angle.
+        For example: [angle1, distance1, angle2, distance2, ...]
+        """
+        if len(path) < 2:
+            print("[RMC] Path is too short")
+            return False
+        base = path[0]
+        inc = path[1]
+        
+        # heading = self.imu.get_heading()
+        angle = np.arctan2(inc[1]-base[1], inc[0]-base[0])
+        rotation = np.degrees(rotation)
+        self.path.append(rotation)
+        distance = np.sqrt((inc[0]-base[0])**2 + (inc[1]-base[1])**2)
+        # loop over the path converting to angles and distances
+        # if the next point has the same heading as the previous point,
+        # then we can just add the distance
+        for i in range(2, len(path)):
+            check = path[i]
+            angle_check = np.arctan2(check[1]-inc[1], check[0]-inc[0])
+            if angle_check == angle:
+                distance += np.sqrt((check[0]-inc[0])**2 + (check[1]-inc[1])**2)
+            else:
+                self.path.append(distance)
+                self.path.append(angle_check)
+                distance = np.sqrt((check[0]-inc[0])**2 + (check[1]-inc[1])**2)
+                angle = angle_check
+                inc = check
+        self.path.append(distance)
+        return
+        
         
     def forward(self, distance):
         """

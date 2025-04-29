@@ -101,6 +101,8 @@ class WorldMap():
         self.bounds = (length, width)   # list of x,y locations for the bounds of the world
         self.robot_position = (0.4826, 0.25)
         self.imu = imu
+        self.axis = None
+        self.figure = None
         
     def get_robot_position(self):
         """ Returns the position and orientation of the robot """
@@ -168,6 +170,24 @@ class WorldMap():
         ax.grid(True, which='both', linestyle='--', linewidth=0.5)
 
         plt.savefig("world_map.jpg")
-        plt.show()
+        # plt.show()
 
-        plt.close(fig)  # << clean up the figure from memory if you're doing many plots
+        # plt.close(fig)  # << clean up the figure from memory if you're doing many plots
+        self.axis = ax
+        self.figure = fig
+    
+    def draw_path_on_map(self, path:List[tuple]):
+        """ Draws the path on the map """
+        if self.axis is None or self.figure is None:
+            print("[ODOMETER] No map to draw on")
+            return
+        
+        print("[ODOMETER] Drawing path on map")
+        
+        for i in range(len(path)-1):
+            x1, y1 = path[i]
+            x2, y2 = path[i+1]
+            self.axis.plot([x1, x2], [y1, y2], color='blue', linewidth=2)
+        
+        plt.show()
+   
