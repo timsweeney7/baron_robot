@@ -1,4 +1,3 @@
-
 import time
 import pigpio
 import numpy as np
@@ -185,8 +184,9 @@ class RobotMotorControl():
             if left_ticks > (distance_in_ticks - 20) or right_ticks > (distance_in_ticks - 20):
                 if near_goal_switch:
                     near_goal_switch = False
-                    self.pi.set_PWM_dutycycle(FORWARD_RIGHT, DUTY_CYCLE - 30)
                     self.pi.set_PWM_dutycycle(FORWARD_LEFT, DUTY_CYCLE - 30)
+                    self.pi.set_PWM_dutycycle(FORWARD_RIGHT, new_duty_cycle - 30)
+                    
             if left_ticks > distance_in_ticks or right_ticks > distance_in_ticks:
                 break
             
@@ -253,20 +253,20 @@ class RobotMotorControl():
         start_heading = self.imu.get_heading()  # 0–360
         target_heading = (start_heading + angle_deg) % 360
         if DEBUG:
-            print(f"[RMC][rotate_by]\tangle_deg: {angle_deg} Start Heading: {start_heading}", end=" ")
+            print(f"[RMC][rotate_by]   degrees: {angle_deg} Start Heading: {start_heading}", end=" ")
             print(f"\t Target Heading: {target_heading}")
-        
-        FAST_DUTY_CYCLE = 80
-        SLOW_DUTY_CYCLE = 50
         
         # FAST_DUTY_CYCLE = 80
         # SLOW_DUTY_CYCLE = 50
+        
+        FAST_DUTY_CYCLE = 60
+        SLOW_DUTY_CYCLE = 40
         
         # Ignore very small adjustments
         if -0.5 <= angle_deg <= 0.5:
             pass
         # Determine direction to turn
-        elif angle_deg > 0:
+        elif angle_deg >= 0:
             # initialize pwm signal to control motor
             self.pi.set_PWM_range(FORWARD_RIGHT, 100)
             self.pi.set_PWM_range(BACKWARD_LEFT, 100)
@@ -279,7 +279,7 @@ class RobotMotorControl():
                 if self._within_tolerance(current=heading, target=target_heading, tolerance=25):
                     self.pi.set_PWM_dutycycle(FORWARD_RIGHT, SLOW_DUTY_CYCLE)
                     self.pi.set_PWM_dutycycle(BACKWARD_LEFT, SLOW_DUTY_CYCLE)
-                if self._has_passed_clockwise(start_heading, target_heading, heading):
+                if self._has_passed_counterclockwise(start_heading, target_heading, heading):
                     break
 
         elif angle_deg < 0:
@@ -295,7 +295,7 @@ class RobotMotorControl():
                 if self._within_tolerance(current=heading, target=target_heading, tolerance=25):
                     self.pi.set_PWM_dutycycle(BACKWARD_RIGHT, SLOW_DUTY_CYCLE)
                     self.pi.set_PWM_dutycycle(FORWARD_LEFT, SLOW_DUTY_CYCLE)
-                if self._has_passed_counterclockwise(start_heading, target_heading, heading):
+                if self._has_passed_clockwise(start_heading, target_heading, heading):
                     break
 
         self.stop_motion()
@@ -305,17 +305,17 @@ class RobotMotorControl():
         return self.imu.get_heading()
         
     @staticmethod
-    def _has_passed_clockwise(start, target, current):
-        """Checks if we passed the target heading going clockwise."""
-        if start < target:
-            return current >= target
+    def _has_passed_counterclockwise(start, target, current):
+        """Checks if we passed the target heading going counterclockwise."""
+        if start <= target:
+            return current >= target or current < start
         return current >= target and current < start
 
     @staticmethod
-    def _has_passed_counterclockwise(start, target, current):
-        """Checks if we passed the target heading going counterclockwise."""
-        if start > target:
-            return current <= target
+    def _has_passed_clockwise(start, target, current):
+        """Checks if we passed the target heading going clockwise."""
+        if start >= target:
+            return current <= target or current > start
         return current <= target and current > start
     
     @staticmethod
