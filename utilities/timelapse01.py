@@ -12,15 +12,21 @@ os.system("sudo mkdir " + today)
 
 # define the codec and create VideoWriter object
 fps_out = 10
-fourcc = cv2.VideoWriter_fourcc(*'XVID')
+fourcc = cv2.VideoWriter_fourcc(*"XVID")
 out = cv2.VideoWriter(today + ".avi", fourcc, fps_out, (1280, 720))
 
 # reocrd n-images into the current directory
-for i in range (0,10):
-	image = "sudo raspistill -w 1280 -h 720 -hf -vf -o /home/pi/" + today + "/" + str(i) + ".jpg"
-	os.system(image)
-	print("Saved image: ", i)
-	time.sleep(0.1)
+for i in range(0, 10):
+    image = (
+        "sudo raspistill -w 1280 -h 720 -hf -vf -o /home/pi/"
+        + today
+        + "/"
+        + str(i)
+        + ".jpg"
+    )
+    os.system(image)
+    print("Saved image: ", i)
+    time.sleep(0.1)
 
 # find all images recorded during the run
 files = glob.glob(today + "/*.jpg")
@@ -30,8 +36,8 @@ print(files)
 
 # loop through and print frames to video file
 for x in files:
-	print(x)
-	image_out = cv2.imread(x)
-	out.write(image_out)
+    print(x)
+    image_out = cv2.imread(x)
+    out.write(image_out)
 
 print("Video: " + today + ".avi is now ready for viewing!")

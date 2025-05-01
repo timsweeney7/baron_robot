@@ -1,13 +1,14 @@
 import RPi.GPIO as gpio
 import time
 
-class pingSensor():
-    
+
+class pingSensor:
+
     def __init__(self):
         # Define pin allocations
         self.trig = 16
         self.echo = 18
-        
+
         gpio.setmode(gpio.BOARD)
         gpio.setup(self.trig, gpio.OUT)
         gpio.setup(self.echo, gpio.IN)
@@ -15,7 +16,7 @@ class pingSensor():
         # ensure output has no value
         gpio.output(self.trig, False)
         time.sleep(0.5)
-        
+
     def get_distance(self):
         # Generate trigger pulse
         gpio.output(self.trig, True)
@@ -35,9 +36,9 @@ class pingSensor():
 
         # Convert time to distance
         distance = pulse_duration * 17150
-        distance = round(distance,2)
+        distance = round(distance, 2)
         # print(distance)
         return distance
-    
+
     def game_over(self):
-        gpio.cleanup()  
+        gpio.cleanup()
