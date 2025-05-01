@@ -1,14 +1,118 @@
 import numpy as np
-from queue import Queue
 import heapq
+from typing import List
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
-from utilities.odometry import WorldMap
 from utilities.block import Block
+from utilities.imu import IMU
 
-MAP_EDGE_KEEPOUT = 0.3048  # 1 FOOT
+MAP_EDGE_KEEPOUT = 0.3048/2  # 1 FOOT
 BLOCK_KEEPOUT = 0.2
 
 ORDER = ["RED", "GREEN", "BLUE"] * 3
+
+
+class WorldMap:
+
+    def __init__(self, length, width, imu: IMU):
+        self.blocks = []  # list of x,y locations of objects in the world
+        self.bounds = (
+            length,
+            width,
+        )  # list of x,y locations for the bounds of the world
+        self.robot_position = (0.4826, 0.25)
+        self.imu = imu
+        self.axis = None
+        self.figure = None
+
+    def get_robot_position(self):
+        """Returns the position and orientation of the robot"""
+
+        # For DEBUG ONLY
+        if self.imu is None:
+            print("[ODOMETER] WORLD MAP IS IN DEBUG MODE !!!")
+            return self.robot_position, 0
+
+        return self.robot_position, self.imu.get_heading()
+
+    def update_blocks(self, blocks: List[Block]):
+        """
+        Updates the location of blocks in the world map based on the metadata provided
+        @param blocks: List of block positions from the robot frame of reference
+        """
+        for block in blocks:
+            self.blocks.append(block)
+
+    def get_blocks(self):
+        return self.blocks
+
+    def draw_map(self):
+        fig, ax = plt.subplots()  # << New figure and axes each time
+        ax.set_aspect("equal")
+
+        # Draw the bounds of the map
+        width, height = self.bounds
+        arena = patches.Rectangle(
+            (0, 0), width=width, height=height, facecolor="none", edgecolor="black"
+        )
+        ax.add_patch(arena)
+        keepout = patches.Rectangle(
+            (MAP_EDGE_KEEPOUT, MAP_EDGE_KEEPOUT), width=width-MAP_EDGE_KEEPOUT*2, height=height-MAP_EDGE_KEEPOUT*2, facecolor="none", edgecolor="red"
+        )
+        ax.add_patch(keepout)
+
+        # Draw the robot
+        location, heading_deg = self.get_robot_position()
+        robo_x, robo_y = location
+        triangle = np.array([[0.0762, 0, 1], [-0.254, 0.1016, 1], [-0.254, -0.1016, 1]])
+        theta = np.deg2rad(heading_deg)
+        c, s = np.cos(theta), np.sin(theta)
+        T = np.array([[c, -s, robo_x], [s, c, robo_y], [0, 0, 1]])
+        triangle = (T @ triangle.T).T[:, :2]
+        robot_patch = patches.Polygon(triangle, closed=True, color="black")
+        ax.add_patch(robot_patch)
+
+        # Draw the blocks
+        for block in self.blocks:
+            x, y = block.location
+            ax.scatter(x, y, c=block.color)
+            circle = plt.Circle(
+                (x, y), BLOCK_KEEPOUT, color=block.color, fill=False, clip_on=True
+            )
+            ax.add_patch(circle)
+
+        ax.set_title("World Map")
+        ax.set_xlim(-1 * width * 0.02, width * 1.02)
+        ax.set_ylim(-1 * height * 0.02, height * 1.02)
+        ax.set_xlabel("Meters")
+
+        ax.set_axisbelow(True)
+        ax.grid(True, which="both", linestyle="--", linewidth=0.5)
+
+        plt.savefig("world_map.jpg")
+        # plt.show()
+
+        # plt.close(fig)  # << clean up the figure from memory if you're doing many plots
+        self.axis = ax
+        self.figure = fig
+
+    def draw_path_on_map(self, path: List[tuple], color, save_fig=False):
+        """Draws the path on the map"""
+
+        if self.axis is None or self.figure is None:
+            print("[ODOMETER] No map to draw on")
+            return
+
+        print(f"[ODOMETER] Drawing path on map: {path}")
+
+        for i in range(len(path) - 1):
+            x1, y1 = path[i]
+            x2, y2 = path[i + 1]
+            self.axis.plot([x1, x2], [y1, y2], color=color, linewidth=2)
+
+        if save_fig:
+            plt.savefig("planned_path.jpg")
 
 
 class Node:
@@ -56,14 +160,16 @@ class PathPlanner:
 
     def _valid_move(self, position):
         """Check if the move is valid within the world map"""
+        print(f"Valid move? {position}", end="  ")
         x, y = position
         # Return False if out of bounds
         if (
-            x < 0 + self.MAP_EDGE_KEEPOUT
-            or x > self.MAX_WIDTH - self.MAP_EDGE_KEEPOUT
-            or y < 0 + self.MAP_EDGE_KEEPOUT
-            or y > self.MAX_HEIGHT - self.MAP_EDGE_KEEPOUT
+            x < 0 + MAP_EDGE_KEEPOUT
+            or x > self.MAX_WIDTH - MAP_EDGE_KEEPOUT
+            or y < 0 + MAP_EDGE_KEEPOUT
+            or y > self.MAX_HEIGHT - MAP_EDGE_KEEPOUT
         ):
+            print("no")
             return False
         # Check if the move is within the boundary of a block
         for block in self.blocks:
@@ -71,7 +177,9 @@ class PathPlanner:
                 self._close_together(position, block.location, threshold=BLOCK_KEEPOUT)
                 and block.color != self.target_block.color
             ):
+                print("no")
                 return False
+        print('yes')
         return True  # Valid move
 
     def _get_neighbors(self, node: Node):
@@ -93,11 +201,12 @@ class PathPlanner:
         # fmt: on
 
         # Filter out neighbors that are not valid moves
-        for neighbor in neighbors:
-            if not self._valid_move(neighbor[0]):
-                neighbors.remove(neighbor)
+        valid_neighbors = [
+            neighbor for neighbor in neighbors
+            if self._valid_move(neighbor[0])
+        ]
 
-        return neighbors
+        return valid_neighbors
 
     def _close_together(self, current, goal, threshold):
         """Check if the current position is close to the goal"""
@@ -126,7 +235,8 @@ class PathPlanner:
 
             if debug and (current.parent is not None):
                 closed_path = [current.parent.position, current.position]
-                self.wm.draw_path_on_map(closed_path, "blue")
+                self.wm.draw_path_on_map(closed_path, "blue", True)
+                input("...")  # give time to review map
 
             for neighbor_pos, move_cost in self._get_neighbors(current):
                 if debug:
@@ -147,12 +257,13 @@ class PathPlanner:
                 heapq.heappush(open_heap, neighbor_node)
 
             counter += 1
-            if debug:
-                input("...")  # give time to review map
+            
             if counter > 1_000_000:
                 print("[PLAN] Too many iterations, stopping search")
                 break
         return None  # No path found
+
+
 
 
 if __name__ == "__main__":
@@ -165,7 +276,7 @@ if __name__ == "__main__":
 
     block2 = Block(color="CYAN", location=(0.9, 0.235))
 
-    block3 = Block(color="RED", location=(1.77, 0.28))
+    block3 = Block(color="RED", location=(2.0, 1.25))
 
     MAP_LENGTH = 2.54
     MAP_WIDTH = 1.829
