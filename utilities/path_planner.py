@@ -116,7 +116,7 @@ class WorldMap:
 
 
 class Node:
-    def __init__(self, position, cost_to_come, estimated_total_cost, parent=None):
+    def __init__(self, position, cost_to_come=None, estimated_total_cost=None, parent=None):
         self.position = position
         self.cost_to_come = cost_to_come
         self.estimated_total_cost = estimated_total_cost
@@ -124,11 +124,27 @@ class Node:
 
     def __lt__(self, other):
         return self.estimated_total_cost < other.estimated_total_cost
+    
+    def __hash__(self):
+        return hash(self.position)
+    
+    def __eq__(self, other):
+        if isinstance(other, Node):
+            return self.position == other.position
+        return False
 
 
 def _heuristic_calc(start, end):
     """Start and end are tuples of (x, y) coordinates"""
     return np.sqrt((end[0] - start[0]) ** 2 + (end[0] - start[0]) ** 2)
+
+def angle_between_points(p1, p2):
+    """Returns the angle between two points in degrees"""
+    x1, y1 = p1
+    x2, y2 = p2
+    dx = x2 - x1
+    dy = y2 - y1
+    return np.rad2deg(np.arctan2(dy, dx))
 
 
 class PathPlanner:
@@ -182,31 +198,60 @@ class PathPlanner:
         print('yes')
         return True  # Valid move
 
-    def _get_neighbors(self, node: Node):
-        """Gets all of the neighboring positions and their move costs"""
-
+    def _get_neighbors(self, node: Node, goal):
+        """
+        Gets all of the neighboring positions and their move costs
+        Returns a list of Node objects
+        """
+        
+        def _calculate_cost(parent, child):
+            """Calculate the cost of moving to a neighbor"""
+            if parent.parent is None:
+                current_heading = self.wm.get_robot_position()[1]
+            else:
+                current_heading = angle_between_points(parent.parent.position, parent.position)
+            child_heading = angle_between_points(parent.position, child)
+            # Calculate the cost based on the angle difference
+            angle_diff = abs(current_heading - child_heading)
+            if angle_diff > 1:
+                return 1.5
+            return 1.0
+        
         x, y = node.position
-
+       
         # fmt: off
-        neighbors = [
-            ((round(x + self.GRID_SIZE, 5), round(y                 , 5)), 1),  # straight
-            ((round(x                 , 5), round(y + self.GRID_SIZE, 5)), 1),
-            ((round(x - self.GRID_SIZE, 5), round(y                 , 5)), 1),
-            ((round(x                 , 5), round(y - self.GRID_SIZE, 5)), 1),
-            ((round(x + self.GRID_SIZE, 5), round(y + self.GRID_SIZE, 5)), np.sqrt(2)+1),  # diagonal
-            ((round(x - self.GRID_SIZE, 5), round(y + self.GRID_SIZE, 5)), np.sqrt(2)+1),
-            ((round(x - self.GRID_SIZE, 5), round(y - self.GRID_SIZE, 5)), np.sqrt(2)+1),
-            ((round(x + self.GRID_SIZE, 5), round(y - self.GRID_SIZE, 5)), np.sqrt(2)+1),
+        neighbor_positions = [
+            (round(x + self.GRID_SIZE, 5), round(y                 , 5)),  # straight
+            (round(x                 , 5), round(y + self.GRID_SIZE, 5)),
+            (round(x - self.GRID_SIZE, 5), round(y                 , 5)),
+            (round(x                 , 5), round(y - self.GRID_SIZE, 5)),
+            (round(x + self.GRID_SIZE, 5), round(y + self.GRID_SIZE, 5)),  # diagonal
+            (round(x - self.GRID_SIZE, 5), round(y + self.GRID_SIZE, 5)),
+            (round(x - self.GRID_SIZE, 5), round(y - self.GRID_SIZE, 5)),
+            (round(x + self.GRID_SIZE, 5), round(y - self.GRID_SIZE, 5)),
         ]
         # fmt: on
 
         # Filter out neighbors that are not valid moves
-        valid_neighbors = [
-            neighbor for neighbor in neighbors
-            if self._valid_move(neighbor[0])
+        valid_positions = [
+            pos for pos in neighbor_positions
+            if self._valid_move(pos)
         ]
+        
+        # Convert positions and costs to Node objects
+        valid_neighbor_nodes = []
+        for pos in valid_positions:
+            cost_to_come = node.cost_to_come + _calculate_cost(node, pos)
+            estimated_total_cost = cost_to_come + _heuristic_calc(pos, goal)
+            neighbor_node = Node(
+                position=pos,
+                cost_to_come=cost_to_come,
+                estimated_total_cost=estimated_total_cost,
+                parent=node,
+            )
+            valid_neighbor_nodes.append(neighbor_node)
 
-        return valid_neighbors
+        return valid_neighbor_nodes
 
     def _close_together(self, current, goal, threshold):
         """Check if the current position is close to the goal"""
@@ -215,10 +260,11 @@ class PathPlanner:
             < threshold
         )
 
-    def astar(self, start, goal, debug=False):
+    def astar(self, start, goal, debug=0):
         open_heap = []
         heapq.heappush(open_heap, Node(start, 0, _heuristic_calc(start, goal), None))
-        closed_set = set()
+        closed_set = {}
+        open_set = {}
 
         counter = 0
         while open_heap:
@@ -231,33 +277,35 @@ class PathPlanner:
                 print("[PLAN] Found path to goal")
                 return self.reconstruct_path(current)
 
-            closed_set.add(current.position)
+            closed_set[Node(current.position)] = current
 
-            if debug and (current.parent is not None):
+            if debug > 0 and (current.parent is not None):
                 closed_path = [current.parent.position, current.position]
-                self.wm.draw_path_on_map(closed_path, "blue", True)
-                input("...")  # give time to review map
+                self.wm.draw_path_on_map(closed_path, "blue", False)
+                if debug > 1:
+                    input("...")  # give time to review map
 
-            for neighbor_pos, move_cost in self._get_neighbors(current):
-                if debug:
-                    open_path = [current.position, neighbor_pos]
-                    self.wm.draw_path_on_map(open_path, "gray")
-                if neighbor_pos in closed_set:
+            for neighbor in self._get_neighbors(current, goal):
+                
+                if neighbor in closed_set:
                     continue
-
-                new_cost_to_come = current.cost_to_come + move_cost
-                neighbor_node = Node(
-                    position=neighbor_pos,
-                    cost_to_come=new_cost_to_come,
-                    estimated_total_cost=new_cost_to_come
-                    + _heuristic_calc(neighbor_pos, goal),
-                    parent=current,
-                )
-
-                heapq.heappush(open_heap, neighbor_node)
+                if neighbor in open_set:
+                    # update the node if the new node has a lower cost to come
+                    old_cost_to_come = open_set[neighbor].cost_to_come
+                    if neighbor.cost_to_come < old_cost_to_come:
+                        open_set[neighbor] = neighbor
+                        # push the new node to the heap
+                        heapq.heappush(open_heap, neighbor)
+                    continue
+                else:
+                    # Add the node to the open_set
+                    open_set[neighbor] = neighbor
+                    heapq.heappush(open_heap, neighbor)
+                    if debug > 0 :
+                        closed_path = [neighbor.parent.position, neighbor.position]
+                        self.wm.draw_path_on_map(closed_path, "gray", False)
 
             counter += 1
-            
             if counter > 1_000_000:
                 print("[PLAN] Too many iterations, stopping search")
                 break
@@ -289,7 +337,7 @@ if __name__ == "__main__":
     path_planner.select_goal()
 
     start = (0.25, 0.25)
-    path = path_planner.astar(start, path_planner.target_block.location, debug=True)
+    path = path_planner.astar(start, path_planner.target_block.location, debug=1)
     if path:
         print("Path found:")
         for i in path:
@@ -306,4 +354,4 @@ if __name__ == "__main__":
     # for i in rmc.path:
     #     print(i)
 
-    wm.draw_path_on_map(path)
+    wm.draw_path_on_map(path, "red", save_fig=True)
