@@ -4,8 +4,8 @@ import numpy as np
 from utilities.RobotMotorControl import RobotMotorControl
 from utilities.vision import Camera
 from utilities.imu import IMU
-from utilities.odometry import Odometer, WorldMap
-from utilities.path_planner import PathPlanner
+from utilities.odometry import Odometer
+from utilities.path_planner import PathPlanner, WorldMap
 
 
 # World Parameters
@@ -25,7 +25,7 @@ END = 6
 
 # Value for determining if a block can be picked up
 # Higher values require the block to be closer to the robot
-BLOCK_IN_GRIP_RANGE = 250
+BLOCK_IN_GRIP_RANGE = 270
 
 
 imu = IMU()
@@ -67,7 +67,13 @@ while CURRENT_STATE != END:
         )
         if path is None:
             print("[Main] No path found")
-        world_map.draw_path_on_map(path)
+        
+        print()     # debug
+        for _ in path:
+            print(f"{_}")
+        print()
+        
+        world_map.draw_path_on_map(path, "blue", save_fig=True)
         rmc.set_path(path)
         CURRENT_STATE = DRIVE_PATH
 

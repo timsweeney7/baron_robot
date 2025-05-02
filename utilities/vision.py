@@ -6,7 +6,7 @@ import numpy as np
 from typing import Tuple, List
 import time
 
-from utilities.odometry import WorldMap
+from utilities.path_planner import WorldMap
 from utilities.block import Block
 
 

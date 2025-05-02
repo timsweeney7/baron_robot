@@ -92,33 +92,33 @@ class RobotMotorControl:
 
         # heading = self.imu.get_heading()
         angle = np.degrees(np.arctan2(inc[1] - base[1], inc[0] - base[0]))
-        # print(angle)
+        print(f"Angle: {angle}")
         self.movements.append(("Angle", angle))
         distance = np.sqrt((inc[0] - base[0]) ** 2 + (inc[1] - base[1]) ** 2)
-        # print(distance)
+        print(f"Distance: {distance}")
         # loop over the path converting to angles and distances
         # if the next point has the same heading as the previous point,
         # then we can just add the distance
         for i in range(2, len(path)):
             check = path[i]
             angle_check = np.degrees(np.arctan2(check[1] - inc[1], check[0] - inc[0]))
-            # print(f"Angle check: {angle_check}")
-            if angle_check == angle:
-                # print("[RMC] Same angle as before")
+            print(f"Angle check: {angle_check}")
+            if abs(angle_check - angle) < 0.01:
+                print("[RMC] Same angle as before")
                 distance += np.sqrt((check[0] - inc[0]) ** 2 + (check[1] - inc[1]) ** 2)
-                # print(f"Distance: {distance}")
+                print(f"Distance: {distance}")
             else:
                 self.movements.append(("Distance", distance))
-                # print("[RMC] New angle")
+                print("[RMC] New angle")
                 self.movements.append(("Angle", angle_check))
                 distance = np.sqrt((check[0] - inc[0]) ** 2 + (check[1] - inc[1]) ** 2)
 
-            # print(f"Distance: {distance}")
+            print(f"Distance: {distance}")
             angle = angle_check
             inc = check
 
         self.movements.append(("Distance", distance))
-
+        
         print("[RMC] Movements set")
         for i in self.movements:
             print(f"\t{i}")

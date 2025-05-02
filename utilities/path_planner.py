@@ -31,7 +31,7 @@ class WorldMap:
 
         # For DEBUG ONLY
         if self.imu is None:
-            print("[ODOMETER] WORLD MAP IS IN DEBUG MODE !!!")
+            print("[PLAN] WORLD MAP IS IN DEBUG MODE !!!")
             return self.robot_position, 0
 
         return self.robot_position, self.imu.get_heading()
@@ -101,10 +101,8 @@ class WorldMap:
         """Draws the path on the map"""
 
         if self.axis is None or self.figure is None:
-            print("[ODOMETER] No map to draw on")
+            print("[PLAN] No map to draw on")
             return
-
-        print(f"[ODOMETER] Drawing path on map: {path}")
 
         for i in range(len(path) - 1):
             x1, y1 = path[i]
@@ -159,12 +157,12 @@ class PathPlanner:
     def select_goal(self):
         """Selects the next destination for the robot to move towards"""
         for block in self.blocks:
-            if block.color == "RED":
-                print(f"[PLAN] Found RED block at {block.location}")
+            if block.color == "CYAN":
+                print(f"[PLAN] Found CYAN block at {block.location}")
                 self.target_block = block
                 return self.target_block
         else:
-            print("[PLAN] No RED block found")
+            print("[PLAN] No CYAN block found")
             return False
 
     def reconstruct_path(self, node: Node):
@@ -176,7 +174,6 @@ class PathPlanner:
 
     def _valid_move(self, position):
         """Check if the move is valid within the world map"""
-        print(f"Valid move? {position}", end="  ")
         x, y = position
         # Return False if out of bounds
         if (
@@ -185,7 +182,6 @@ class PathPlanner:
             or y < 0 + MAP_EDGE_KEEPOUT
             or y > self.MAX_HEIGHT - MAP_EDGE_KEEPOUT
         ):
-            print("no")
             return False
         # Check if the move is within the boundary of a block
         for block in self.blocks:
@@ -193,9 +189,7 @@ class PathPlanner:
                 self._close_together(position, block.location, threshold=BLOCK_KEEPOUT)
                 and block.color != self.target_block.color
             ):
-                print("no")
                 return False
-        print('yes')
         return True  # Valid move
 
     def _get_neighbors(self, node: Node, goal):
@@ -204,13 +198,13 @@ class PathPlanner:
         Returns a list of Node objects
         """
         
-        def _calculate_cost(parent, child):
+        def _calculate_cost(child):
             """Calculate the cost of moving to a neighbor"""
-            if parent.parent is None:
+            if node.parent is None:
                 current_heading = self.wm.get_robot_position()[1]
             else:
-                current_heading = angle_between_points(parent.parent.position, parent.position)
-            child_heading = angle_between_points(parent.position, child)
+                current_heading = angle_between_points(node.parent.position, node.position)
+            child_heading = angle_between_points(node.position, child)
             # Calculate the cost based on the angle difference
             angle_diff = abs(current_heading - child_heading)
             if angle_diff > 1:
@@ -241,7 +235,7 @@ class PathPlanner:
         # Convert positions and costs to Node objects
         valid_neighbor_nodes = []
         for pos in valid_positions:
-            cost_to_come = node.cost_to_come + _calculate_cost(node, pos)
+            cost_to_come = node.cost_to_come + _calculate_cost(pos)
             estimated_total_cost = cost_to_come + _heuristic_calc(pos, goal)
             neighbor_node = Node(
                 position=pos,
@@ -268,14 +262,14 @@ class PathPlanner:
 
         counter = 0
         while open_heap:
-            print(len(open_heap))
             current = heapq.heappop(open_heap)
 
             if self._close_together(
-                current.position, goal, threshold=BLOCK_KEEPOUT + 0.2
+                current.position, goal, threshold=BLOCK_KEEPOUT
             ):
                 print("[PLAN] Found path to goal")
-                return self.reconstruct_path(current)
+                break
+                
 
             closed_set[Node(current.position)] = current
 
@@ -308,9 +302,13 @@ class PathPlanner:
             counter += 1
             if counter > 1_000_000:
                 print("[PLAN] Too many iterations, stopping search")
-                break
-        return None  # No path found
+                return None  # No path found
 
+        # orient robot towards the goal
+        angle_to_goal = angle_between_points(current.position, goal)
+        last_position = (current.position[0]+np.cos(np.deg2rad(angle_to_goal))*0.01 , current.position[1]+np.sin(np.deg2rad(angle_to_goal))*0.01)
+        last_node = Node(last_position, None, None, current)
+        return self.reconstruct_path(last_node)
 
 
 
@@ -326,12 +324,12 @@ if __name__ == "__main__":
 
     block3 = Block(color="RED", location=(2.0, 1.25))
 
-    MAP_LENGTH = 2.54
-    MAP_WIDTH = 1.829
+    MAP_LENGTH = 3.048
+    MAP_WIDTH = 3.048
+    
     wm = WorldMap(MAP_LENGTH, MAP_WIDTH, None)
-    wm.draw_map()
-
     wm.update_blocks([block1, block2, block3])
+    wm.draw_map()
 
     path_planner = PathPlanner(wm)
     path_planner.select_goal()

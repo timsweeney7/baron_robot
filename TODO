@@ -1,0 +1,3 @@
+- If we get stuck rotating. Slowly increase PWM
+- Straighten out straight line driving
+- don't close gripper if block i soff to the side
