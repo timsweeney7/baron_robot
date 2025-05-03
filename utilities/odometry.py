@@ -72,7 +72,7 @@ class Odometer:
         rotations = (dist) * (1 / (2 * np.pi * 0.0325))
         ticks = rotations * 20
         # print("[ODOMETER] wheel rotations = ", rotations)
-        print("[ODOMETER] Estimated Ticks = ", ticks)
+        # print("[ODOMETER] Estimated Ticks = ", ticks)
         return ticks
 
     @staticmethod

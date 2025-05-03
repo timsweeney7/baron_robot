@@ -22,29 +22,29 @@ from utilities.block import Block
 
 
 # HOME ----------------
-# RED_LS_LB = np.array([0, 215, 100])
-# RED_LS_UB = np.array([15, 255, 255])
-# RED_HS_LB = np.array([165, 200, 105])
-# RED_HS_UB = np.array([180, 255, 255])
-
-# GREEN_LB = np.array([40, 80, 100])
-# GREEN_UB = np.array([80, 255, 255])
-
-# CYAN_LB = np.array([100, 140, 100])
-# CYAN_UB = np.array([110, 255, 255])
-
-
-# ON THE PORCH ----------------
-RED_LS_LB = np.array([0, 180, 100])
+RED_LS_LB = np.array([0, 215, 100])
 RED_LS_UB = np.array([15, 255, 255])
-RED_HS_LB = np.array([165, 180, 150])
+RED_HS_LB = np.array([165, 150, 105])
 RED_HS_UB = np.array([180, 255, 255])
 
-GREEN_LB = np.array([40, 100, 0])
+GREEN_LB = np.array([40, 108, 100])
 GREEN_UB = np.array([80, 255, 255])
 
 CYAN_LB = np.array([100, 140, 100])
 CYAN_UB = np.array([110, 255, 255])
+
+
+# ON THE PORCH ----------------
+# RED_LS_LB = np.array([0, 180, 100])
+# RED_LS_UB = np.array([15, 255, 255])
+# RED_HS_LB = np.array([165, 180, 150])
+# RED_HS_UB = np.array([180, 255, 255])
+
+# GREEN_LB = np.array([40, 100, 0])
+# GREEN_UB = np.array([80, 255, 255])
+
+# CYAN_LB = np.array([100, 140, 100])
+# CYAN_UB = np.array([110, 255, 255])
 
 
 # ------------------------------
@@ -80,7 +80,7 @@ class Camera:
         self.picam2.start()
         time.sleep(1)  # Allow camera to warm u
 
-    def capture_image(self):
+    def capture_image(self) -> Tuple[np.array, dict]:
         """
         Captures an image in RGB format and returns it as a numpy array
         @return rgb_image: image captured
@@ -260,11 +260,12 @@ def translate_to_world_frame(point, robo_heading, robo_pos):
 
 
 if __name__ == "__main__":
-
-    cam = Camera()
-    rgb_image = cam.capture_image()
+    from utilities.path_planner import WorldMap
+    wm = WorldMap(1, 1, None)
+    cam = Camera(wm)
+    rgb_image, metadata = cam.capture_image()
     cv.imwrite("rgb_image.jpg", cv.cvtColor(rgb_image, cv.COLOR_RGB2BGR))
-    boxed_image, blocks = cam.find_blocks(rgb_image)
+    boxed_image, blocks = cam.find_blocks(rgb_image, metadata)
 
     cv.imwrite("boxedImage.jpg", cv.cvtColor(boxed_image, cv.COLOR_RGB2BGR))
     print(f"Image shape: {np.shape(boxed_image)}")

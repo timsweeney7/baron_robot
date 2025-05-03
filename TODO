@@ -1,3 +1,7 @@
 - If we get stuck rotating. Slowly increase PWM
 - Straighten out straight line driving
 - don't close gripper if block i soff to the side
+- Once we have the order of goal selction set up correctly , fix error of no path found
+
+
+- In Arena, make sure to set the correct block color scheme and RMC rotation PWM speeds
