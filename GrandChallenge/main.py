@@ -36,8 +36,8 @@ def capture_and_process_image(cam:Camera, wm:WorldMap):
     Returns False if no blocks are identified.
     """
     frame, metadata = cam.capture_image()
-    print("BLOCK PLACEMENT DEBUG")
-    print(metadata)
+    frame = cv.blur(frame, (5, 5))
+    print("metadata: ", metadata)
     cv.imwrite("rgb_image.jpg", cv.cvtColor(frame, cv.COLOR_RGB2BGR))
     frame, blocks = cam.find_blocks(frame=frame, metadata=metadata)
     cv.imwrite("block_image.jpg", cv.cvtColor(frame, cv.COLOR_RGB2BGR))
@@ -46,10 +46,19 @@ def capture_and_process_image(cam:Camera, wm:WorldMap):
         pass
     else:
         wm.update_blocks(blocks)
+        print("Number of blocks: ", len(wm.get_blocks()))
         wm.draw_map()
     
     return blocks
-    
+
+def take_step_update_map():
+    position, heading = world_map.get_robot_position()
+    realized_movement = rmc.drive_next_path_step()
+    realized_path = world_map.convert_movements_to_points(position, [realized_movement])
+    world_map.add_to_driven_path(realized_path)
+    world_map.draw_path_on_map(realized_path, "blue", save_fig=False)
+
+
 
 if __name__ == "__main__":
     
@@ -103,8 +112,9 @@ if __name__ == "__main__":
                 start=world_map.get_robot_position()[0], 
                 goal=goal.location,
                 target_color=target_color,
-                debug=1
+                debug=0
             )
+            world_map.add_to_planned_paths(path)
             if path is None:
                 print("[Main] Goal found but no path found!")
                 print("EXITING")
@@ -117,10 +127,10 @@ if __name__ == "__main__":
 
         elif CURRENT_STATE == DRIVE_PATH_TO_BLOCK:
             print("[Main] Driving path")
-            start_point = world_map.get_robot_position()[0]
-            realized_movements = rmc.drive_path()
-            realized_path = world_map.convert_movements_to_points(start_point, realized_movements)
-            world_map.draw_path_on_map(realized_path, "blue", save_fig=True)
+            for step in movements:
+                take_step_update_map()
+                blocks = capture_and_process_image(cam=cam, wm=world_map)
+            world_map.draw_map()
             CURRENT_STATE = COLLECT_BLOCK
             print("[Main] Path complete")
             input('2')
@@ -167,7 +177,8 @@ if __name__ == "__main__":
                 )
             # Add collection movements to world map, update robot position
             collection_path = world_map.convert_movements_to_points(start_point, collection_movements)
-            world_map.draw_path_on_map(collection_path, "blue", save_fig=True)
+            world_map.add_to_driven_path(collection_path)
+            # world_map.draw_path_on_map(collection_path, "blue", save_fig=True)
             world_map.draw_map()
             input('3')
             
@@ -178,8 +189,9 @@ if __name__ == "__main__":
             path = planner.astar(
                 start=start, 
                 goal=goal, 
-                debug=1
+                debug=0
             )
+            world_map.add_to_planned_paths(path)
             movements = world_map.convert_points_to_movements(path)
             rmc.set_path(movements)
             CURRENT_STATE = DRIVE_PATH_TO_CONSTRUCTION
@@ -187,11 +199,10 @@ if __name__ == "__main__":
             
         elif CURRENT_STATE == DRIVE_PATH_TO_CONSTRUCTION:
             print("[Main] Driving path to construction")
-            driven_path = rmc.drive_path()
-            world_map.draw_path_on_map(path, "blue", save_fig=True)
+            for step in movements:
+                take_step_update_map()
+                capture_and_process_image(cam=cam, wm=world_map)
             CURRENT_STATE = RELEASE_BLOCK
-            print("[Main] Path complete")
-            input('5')
             
         elif CURRENT_STATE == RELEASE_BLOCK:
             print("[MAIN] Releasing block")
@@ -204,9 +215,10 @@ if __name__ == "__main__":
                 ("Angle", heading),
                 ("Distance", realized_distance)
             ]
-            
+            print("startpoint debug: ", start_point)
             realized_path = world_map.convert_movements_to_points(start_point, realized_movements)
             world_map.draw_path_on_map(realized_path, "blue", save_fig=True)
+            world_map.add_to_driven_path(realized_path)
             
             CURRENT_STATE = GET_NEXT_GOAL
             input('6')
@@ -217,16 +229,13 @@ if __name__ == "__main__":
             path = planner.astar(
                 start=position, 
                 goal=world_map.map_center,
-                debug=1
+                debug=0
             )
             movements = world_map.convert_points_to_movements(path)
             rmc.set_path(movements)
             # make a move to the center of the map.  With every move, look for the goal block
             for _ in movements:
-                position, heading = world_map.get_robot_position()
-                realized_movement = rmc.drive_next_path_step()
-                realized_path = world_map.convert_movements_to_points(position, [realized_movement])
-                world_map.draw_path_on_map(realized_path, "blue", save_fig=True)
+                take_step_update_map()
                 blocks = capture_and_process_image(cam=cam, wm=world_map)
                 input("debug 1")
                 target_block_found = False

@@ -245,16 +245,15 @@ class Camera:
 
 
 def translate_to_world_frame(point, robo_heading, robo_pos):
-    print("translate_to_world_frame debug")
-    print(point, robo_heading, robo_pos)
+    
     px, py = point
     rx, ry = robo_pos
     theta = np.deg2rad(robo_heading)
     
     T = np.array(
         [
-            [np.cos(np.deg2rad(robo_heading)), -1 * np.sin(np.deg2rad(robo_heading)), rx],
-            [np.sin(np.deg2rad(robo_heading)), np.cos(np.deg2rad(robo_heading)), ry],
+            [np.cos(theta), -1 * np.sin(theta), rx],
+            [np.sin(theta), np.cos(theta), ry],
             [0, 0, 1],
         ]
     )

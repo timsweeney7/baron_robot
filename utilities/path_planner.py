@@ -9,7 +9,7 @@ from utilities.block import Block
 from utilities.imu import IMU
 
 MAP_EDGE_KEEPOUT = 0.3048/2  # 1 FOOT
-BLOCK_KEEPOUT = 0.2
+BLOCK_KEEPOUT = 0.3
 
 ORDER = ["RED", "GREEN", "BLUE"] * 3
 
@@ -34,6 +34,7 @@ class WorldMap:
         self.construction_area_center = (x, y)
         
         self.previous_paths = []
+        self.previous_planned_paths = []
 
     def get_robot_position(self):
         """Returns the position and orientation of the robot"""
@@ -45,13 +46,24 @@ class WorldMap:
 
         return self.robot_position, self.imu.get_heading()
 
-    def update_blocks(self, blocks: List[Block]):
+    def update_blocks(self, new_blocks: List[Block]):
         """
         Updates the location of blocks in the world map based on the metadata provided
         @param blocks: List of block positions from the robot frame of reference
         """
-        for block in blocks:
-            self.blocks.append(block)
+        
+        for new_block in new_blocks:
+            found_match = False
+            for block in self.blocks:
+                if new_block == block:
+                    # Average positions
+                    updated_x = (block.location[0] + new_block.location[0]) / 2
+                    updated_y = (block.location[1] + new_block.location[1]) / 2
+                    block.location = (updated_x, updated_y)
+                    found_match = True
+                    break
+            if not found_match:
+                self.blocks.append(new_block)
 
     def get_blocks(self):
         return self.blocks
@@ -112,13 +124,13 @@ class WorldMap:
 
         ax.set_axisbelow(True)
         ax.grid(True, which="both", linestyle="--", linewidth=0.5)
-        
-        
-        # Draw the previously driven paths
+    
+        # Draw the previous paths
         for path in self.previous_paths:
             self.draw_path_on_map(path, "blue", save_fig=False)
+        for path in self.previous_planned_paths:
+            self.draw_path_on_map(path, "gray", save_fig=False)
 
-        
         plt.savefig("world_map.jpg")
         # plt.show()
         # plt.close(fig)  # << clean up the figure from memory if you're doing many plots
@@ -130,10 +142,6 @@ class WorldMap:
         if self.axis is None or self.figure is None:
             print("[PLAN] No map to draw on")
             return
-        
-        if color.lower() == "blue":
-            self.robot_position = path[-1]
-            print(f"[PLAN] Robot position updated to {self.robot_position}")
 
         for i in range(len(path) - 1):
             x1, y1 = path[i]
@@ -142,6 +150,18 @@ class WorldMap:
 
         if save_fig:
             plt.savefig("world_map.jpg")
+            
+    
+    def add_to_driven_path(self, path):
+        """ 
+        Given a path of x, y points, add it to the running list of movements
+        Update the robot location to the last point in the given path
+        """
+        self.previous_paths.append(path)
+        self.robot_position = path[-1]
+        
+    def add_to_planned_paths(self, path):
+        self.previous_planned_paths.append(path)
 
             
     def remove_block(self, block: Block):
@@ -196,6 +216,7 @@ class WorldMap:
         angle = self.get_robot_position()[1]
         path = [start_point]
         base = start_point
+        print("start point debug: ", base)
         for i in movements:
             if i[0] == "Angle":
                 angle = i[1]

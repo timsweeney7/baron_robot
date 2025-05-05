@@ -137,7 +137,7 @@ class RobotMotorControl:
         pid = PID_Control(Kp=1.75, Ki=0, Kd=0)
 
         distance_in_ticks = self.odom.distance_to_ticks(distance)
-        DUTY_CYCLE = 59
+        DUTY_CYCLE = 50
         self.pi.set_PWM_dutycycle(FORWARD_RIGHT, DUTY_CYCLE)
         self.pi.set_PWM_dutycycle(FORWARD_LEFT, DUTY_CYCLE)
         new_duty_cycle = DUTY_CYCLE
@@ -165,15 +165,14 @@ class RobotMotorControl:
                     current_heading -= 360
 
             # print(f"[RMC][Forward] Current heading: {current_heading}")
-
             left_ticks, right_ticks = self.odom.get_ticks()
-            if left_ticks > (distance_in_ticks - 30) or right_ticks > (
-                distance_in_ticks - 30
-            ):
-                if near_goal_switch:
-                    near_goal_switch = False
-                    self.pi.set_PWM_dutycycle(FORWARD_LEFT, DUTY_CYCLE * 0.6)
-                    self.pi.set_PWM_dutycycle(FORWARD_RIGHT, new_duty_cycle * 0.6)
+            # if left_ticks > (distance_in_ticks - 30) or right_ticks > (
+            #     distance_in_ticks - 30
+            # ):
+            #     if near_goal_switch:
+            #         near_goal_switch = False
+            #         self.pi.set_PWM_dutycycle(FORWARD_LEFT, DUTY_CYCLE * 0.6)
+            #         self.pi.set_PWM_dutycycle(FORWARD_RIGHT, new_duty_cycle * 0.6)
 
             if left_ticks > distance_in_ticks or right_ticks > distance_in_ticks:
                 break
@@ -184,7 +183,6 @@ class RobotMotorControl:
 
             # print(f"[RMC][Forward] New duty cycle: {new_duty_cycle}")
             self.pi.set_PWM_dutycycle(FORWARD_RIGHT, new_duty_cycle)
-            # print()
 
             time.sleep(0.2)
 
@@ -251,11 +249,11 @@ class RobotMotorControl:
             )
             print(f"\t Target Heading: {target_heading}")
 
-        FAST_DUTY_CYCLE = 80
-        SLOW_DUTY_CYCLE = 50
+        # FAST_DUTY_CYCLE = 80
+        # SLOW_DUTY_CYCLE = 50
 
-        # FAST_DUTY_CYCLE = 50
-        # SLOW_DUTY_CYCLE = 40
+        FAST_DUTY_CYCLE = 45
+        SLOW_DUTY_CYCLE = 40
 
         # Ignore very small adjustments
         if -0.5 <= angle_deg <= 0.5:
