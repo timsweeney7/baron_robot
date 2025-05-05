@@ -67,7 +67,8 @@ class RobotMotorControl:
 
         # Create a variable to store the path
         self.movements = []
-        self.path_start_point = None
+        self.step_count = 0  # used for incremental path movement
+
 
     def stop_motion(self):
         # set all pins low
@@ -76,65 +77,16 @@ class RobotMotorControl:
         self.pi.write(BACKWARD_RIGHT, False)
         self.pi.write(FORWARD_RIGHT, False)
 
-    def set_path_from_points(self, path):
+    
+    def set_path(self, movements):
         """
-        Sets the path for the robot to follow given a list of x, y coordinates.
-
-        Returns a list of angles and disstances in alternating order, starting with the angle.
-        For example: [angle1, distance1, angle2, distance2, ...]
+        Set the path to be driven.
         """
-        self.movements = []
-        self.path_start_point = path[0]
-
-        if len(path) < 2:
-            print("[RMC] Path is too short")
-            return False
-        base = path[0]
-        inc = path[1]
-
-        # heading = self.imu.get_heading()
-        angle = np.degrees(np.arctan2(inc[1] - base[1], inc[0] - base[0]))
-        self.movements.append(("Angle", angle))
-        distance = np.sqrt((inc[0] - base[0]) ** 2 + (inc[1] - base[1]) ** 2)
-        # loop over the path converting to angles and distances
-        # if the next point has the same heading as the previous point,
-        # then we can just add the distance
-        for i in range(2, len(path)):
-            check = path[i]
-            angle_check = np.degrees(np.arctan2(check[1] - inc[1], check[0] - inc[0]))
-            if abs(angle_check - angle) < 0.01:
-                distance += np.sqrt((check[0] - inc[0]) ** 2 + (check[1] - inc[1]) ** 2)
-            else:
-                self.movements.append(("Distance", distance))
-                self.movements.append(("Angle", angle_check))
-                distance = np.sqrt((check[0] - inc[0]) ** 2 + (check[1] - inc[1]) ** 2)
-            angle = angle_check
-            inc = check
-        self.movements.append(("Distance", distance))
+        self.movements = movements
+        self.step_count = 0
         print("[RMC] Movements set")
         for i in self.movements:
             print(f"\t{i}")
-            
-    def get_path_from_movements(self, movements):
-        """
-        Given a list of movements the robot took, return the path in the world frame.
-        """
-        path = [self.path_start_point]
-        base = self.path_start_point
-        for i in movements:
-            if i[0] == "Angle":
-                angle = i[1]
-                # print(f"[RMC][path_from_move]: Angle: {angle}")
-            elif i[0] == "Distance":
-                distance = i[1]
-                # print(f"[RMC][path_from_move]: Distance: {distance}")
-                base = (
-                    base[0] + distance * np.cos(np.radians(angle)),
-                    base[1] + distance * np.sin(np.radians(angle)),
-                )
-                path.append(base)
-        return path
-        
 
     def drive_path(self):
         """
@@ -142,7 +94,8 @@ class RobotMotorControl:
         Returns the actual path taken by the robot.
         """
         actual_steps = []
-        for step in self.movements:
+        for i in range(self.step_count, len(self.movements)):
+            step = self.movements[i]
             if step[0] == "Angle":
                 angle = step[1]
                 # print(f"[RMC] Goal Angle: {angle}")
@@ -155,9 +108,27 @@ class RobotMotorControl:
                 actual_steps.append(("Distance", traveled)) 
         # stop motion
         self.stop_motion()
+        self.step_count = i
         time.sleep(0.4)
-        return self.get_path_from_movements(actual_steps)
+        return actual_steps
 
+    def drive_next_path_step(self):
+        step = self.movements[self.step_count]
+        if step[0] == "Angle":
+            angle = step[1]
+            # print(f"[RMC] Goal Angle: {angle}")
+            result_angle = self.orient_to(angle)
+            retval = ("Angle", result_angle)
+        elif step[0] == "Distance":
+            distance = step[1]
+            # print(f"[RMC] Goal Distance: {distance}")
+            traveled = max(self.forward(distance))
+            retval = ("Distance", traveled)
+        # stop motion
+        self.stop_motion()
+        self.step_count += 1
+        time.sleep(0.4)
+        return retval
 
     def forward(self, distance):
         """
@@ -221,20 +192,29 @@ class RobotMotorControl:
         time.sleep(0.4)
         return self.odom.get_distance()
 
-    def backward(self, tf):
+    def backward(self, distance):
+        """
+        distance = meters
+        """
 
-        # TODO: Add PID control and distance measurement
+        distance_in_ticks = self.odom.distance_to_ticks(distance)
+        DUTY_CYCLE = 59
+        self.pi.set_PWM_dutycycle(BACKWARD_RIGHT, DUTY_CYCLE)
+        self.pi.set_PWM_dutycycle(BACKWARD_LEFT, DUTY_CYCLE)
 
-        # Left wheels
-        self.pi.write(FORWARD_LEFT, False)
-        self.pi.write(BACKWARD_LEFT, True)
-        # right wheels
-        self.pi.write(FORWARD_RIGHT, False)
-        self.pi.write(BACKWARD_RIGHT, True)
-        # Wait
-        time.sleep(tf)
-        # Send all pins
+        self.odom.reset()
+
+        while True:
+            left_ticks, right_ticks = self.odom.get_ticks()
+            
+            if left_ticks > distance_in_ticks or right_ticks > distance_in_ticks:
+                break
+            time.sleep(0.025)
+            
         self.stop_motion()
+        time.sleep(0.4)
+        return max(self.odom.get_distance()) * -1
+        
 
     def orient_to(self, angle_deg):
         """
@@ -271,11 +251,11 @@ class RobotMotorControl:
             )
             print(f"\t Target Heading: {target_heading}")
 
-        # FAST_DUTY_CYCLE = 80
-        # SLOW_DUTY_CYCLE = 50
+        FAST_DUTY_CYCLE = 80
+        SLOW_DUTY_CYCLE = 50
 
-        FAST_DUTY_CYCLE = 50
-        SLOW_DUTY_CYCLE = 40
+        # FAST_DUTY_CYCLE = 50
+        # SLOW_DUTY_CYCLE = 40
 
         # Ignore very small adjustments
         if -0.5 <= angle_deg <= 0.5:

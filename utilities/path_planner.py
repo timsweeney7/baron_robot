@@ -3,6 +3,7 @@ import heapq
 from typing import List
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from queue import Queue
 
 from utilities.block import Block
 from utilities.imu import IMU
@@ -21,11 +22,12 @@ class WorldMap:
             length,
             width,
         )  # list of x,y locations for the bounds of the world
-        self.robot_position = (0.4826, 0.25)
+        self.robot_position = (0.3048, 0.3048) # 1 ft, 1 ft
         self.imu = imu
         self.axis = None
         self.figure = None
         self.construction_area_dim = (1.2192, 1.2192)  # 4ft x 4ft
+        self.map_center = (length / 2, width / 2)
         
         x = (self.construction_area_dim[0] - MAP_EDGE_KEEPOUT) / 2 + MAP_EDGE_KEEPOUT
         y = -1 * x + self.bounds[1]
@@ -123,7 +125,7 @@ class WorldMap:
         
 
     def draw_path_on_map(self, path: List[tuple], color:str, save_fig=False):
-        """Draws the path on the map"""
+        """Given a list of x,y points, draws the path on the map"""
 
         if self.axis is None or self.figure is None:
             print("[PLAN] No map to draw on")
@@ -147,8 +149,66 @@ class WorldMap:
         self.blocks.remove(block)
         self.draw_map()
         print(f"[PLAN] Removed {block.color} block at {block.location}")
-        input("[PLAN] 101")
         return True
+    
+    
+    def convert_points_to_movements(self, path):
+        """
+        Given a list of points, convert them to a list of angles and distances
+
+        Returns a list of angles and disstances in alternating order, starting with the angle.
+        For example: [angle1, distance1, angle2, distance2, ...]
+        """
+        movements = []
+
+        if len(path) < 2:
+            print("[WM] Path is too short to convert to movements")
+            return False
+        base = path[0]
+        inc = path[1]
+
+        # heading = self.imu.get_heading()
+        angle = np.degrees(np.arctan2(inc[1] - base[1], inc[0] - base[0]))
+        movements.append(("Angle", angle))
+        distance = np.sqrt((inc[0] - base[0]) ** 2 + (inc[1] - base[1]) ** 2)
+        # loop over the path converting to angles and distances
+        # if the next point has the same heading as the previous point,
+        # then we can just add the distance
+        for i in range(2, len(path)):
+            check = path[i]
+            angle_check = np.degrees(np.arctan2(check[1] - inc[1], check[0] - inc[0]))
+            if abs(angle_check - angle) < 0.01:
+                distance += np.sqrt((check[0] - inc[0]) ** 2 + (check[1] - inc[1]) ** 2)
+            else:
+                movements.append(("Distance", distance))
+                movements.append(("Angle", angle_check))
+                distance = np.sqrt((check[0] - inc[0]) ** 2 + (check[1] - inc[1]) ** 2)
+            angle = angle_check
+            inc = check
+        movements.append(("Distance", distance))
+        return movements
+    
+    
+    def convert_movements_to_points(self, start_point, movements):
+        """
+        Given a list of movements the robot took, return the path in the world frame.
+        """
+        angle = self.get_robot_position()[1]
+        path = [start_point]
+        base = start_point
+        for i in movements:
+            if i[0] == "Angle":
+                angle = i[1]
+                # print(f"[RMC][path_from_move]: Angle: {angle}")
+            elif i[0] == "Distance":
+                distance = i[1]
+                # print(f"[RMC][path_from_move]: Distance: {distance}")
+                base = (
+                    base[0] + distance * np.cos(np.radians(angle)),
+                    base[1] + distance * np.sin(np.radians(angle)),
+                )
+                path.append(base)
+        return path
 
 
 class Node:
@@ -198,21 +258,10 @@ class PathPlanner:
 
     def __init__(self, world_map: WorldMap = None):
         self.MAX_WIDTH, self.MAX_HEIGHT = world_map.bounds
-        self.blocks = world_map.get_blocks() if world_map else []
         self.target_block = None
         self.GRID_SIZE = 0.1
         self.wm = world_map
-
-    def select_goal(self):
-        """Selects the next destination for the robot to move towards"""
-        for block in self.blocks:
-            if block.color == "RED":
-                print(f"[PLAN] Found RED block at {block.location}")
-                self.target_block = block
-                return self.target_block
-        else:
-            print("[PLAN] No RED block found")
-            return False
+        
 
     def reconstruct_path(self, node: Node):
         """
@@ -236,10 +285,11 @@ class PathPlanner:
         ):
             return False
         # Check if the move is within the boundary of a block
-        for block in self.blocks:
+        blocks = self.wm.get_blocks()
+        for block in blocks:
             if (
                 self._close_together(position, block.location, threshold=BLOCK_KEEPOUT)
-                and block.color != self.target_block.color
+                and block.color != self.target_color
             ):
                 return False
         return True  # Valid move
@@ -308,8 +358,9 @@ class PathPlanner:
             < threshold
         )
 
-    def astar(self, start, goal, debug=0):
+    def astar(self, start, goal, target_color=None, debug=0):
         # setup
+        self.target_color = target_color
         open_heap = []
         start_heading = self.wm.get_robot_position()[1]
         heapq.heappush(
@@ -363,10 +414,10 @@ class PathPlanner:
                     open_set[neighbor] = neighbor
                     heapq.heappush(open_heap, neighbor)
                     if debug > 0 :
-                        closed_path = [neighbor.parent.position, neighbor.position]
-                        self.wm.draw_path_on_map(closed_path, "gray", False)
+                        open_path = [neighbor.parent.position, neighbor.position]
+                        self.wm.draw_path_on_map(open_path, "gray", False)
                         if debug > 1:
-                            self.wm.draw_path_on_map(closed_path, "gray", True)
+                            self.wm.draw_path_on_map(open_path, "gray", True)
                             input("...")
 
             counter += 1
@@ -393,7 +444,11 @@ class PathPlanner:
                 heading=None,
                 parent=current
             )
-        return self.reconstruct_path(last_node)
+        path = self.reconstruct_path(last_node)
+        self.wm.draw_path_on_map(path, "gray", True)
+        if debug > 0:
+            self.wm.draw_path_on_map(path, "red", True)
+        return path
 
 
 
