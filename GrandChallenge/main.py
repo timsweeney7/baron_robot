@@ -1,3 +1,7 @@
+"""
+each run is 10 minutes max
+"""
+
 import cv2 as cv
 import numpy as np
 import time
@@ -7,12 +11,17 @@ from utilities.vision import Camera
 from utilities.imu import IMU
 from utilities.odometry import Odometer
 from utilities.path_planner import PathPlanner, WorldMap
+from utilities.PingSensor import pingSensor
 
 
 # World Parameters
 # HOME ----------
 MAP_LENGTH = 3.048 # 10ft
 MAP_WIDTH = 2.7432 # 9ft
+
+# ARENA ----------
+MAP_LENGTH = 3.048 # 10ft
+MAP_WIDTH = 3.048 # 10ft
 
 # set up state machine
 GET_NEXT_GOAL = 0
@@ -25,6 +34,8 @@ RELEASE_BLOCK = 6
 SEARCH = 7
 SCAN_AREA = 9
 END = 8
+START = 10
+REORIENT = 11
 
 # Value for determining if a block can be picked up
 # Higher values require the block to be closer to the robot
@@ -37,7 +48,6 @@ def capture_and_process_image(cam:Camera, wm:WorldMap, got_that_thang_on_me:bool
     Returns False if no blocks are identified.
     """
     frame, metadata = cam.capture_image()
-    frame = cv.blur(frame, (5, 5))
     print("metadata: ", metadata)
     cv.imwrite("rgb_image.jpg", cv.cvtColor(frame, cv.COLOR_RGB2BGR))
     frame, blocks = cam.find_blocks(frame=frame, metadata=metadata)
@@ -76,6 +86,7 @@ if __name__ == "__main__":
     odom = Odometer()
     rmc = RobotMotorControl(imu=imu, odom=odom)
     planner = PathPlanner(world_map=world_map)
+    ping = pingSensor()
 
     print("[Main] Setup complete")
     print("[Main] Starting collection program")
@@ -84,10 +95,17 @@ if __name__ == "__main__":
     position, heading = world_map.get_robot_position()
 
     # Start state machine
-    CURRENT_STATE = GET_NEXT_GOAL
+    CURRENT_STATE = START
 
     # Enter loop
     while CURRENT_STATE != END:
+        
+        if CURRENT_STATE == START:
+            print("[Main] Starting program")
+            capture_and_process_image(cam=cam, wm=world_map)
+            rmc.orient_to(45)
+            capture_and_process_image(cam=cam, wm=world_map)
+            CURRENT_STATE = GET_NEXT_GOAL
 
         if CURRENT_STATE == GET_NEXT_GOAL:
                         
@@ -123,9 +141,9 @@ if __name__ == "__main__":
             world_map.add_to_planned_paths(path)
             if path is None:
                 print("[Main] Goal found but no path found!")
-                print("EXITING")
-                exit()
-                #TODO: change to SEARCH state
+                do_arena_scan()
+                continue
+
             movements = world_map.convert_points_to_movements(path)
             rmc.set_path(movements)
             CURRENT_STATE = DRIVE_PATH_TO_BLOCK
@@ -175,7 +193,7 @@ if __name__ == "__main__":
                 # Get block heading and orient to it
                 goal_angle = target_block.angle_to_robo
                 rotation_angle = rmc.rotate_by(goal_angle)
-                forward_distance = rmc.forward(0.03)
+                forward_distance = rmc.forward(0.02)
                 collection_movements.append(
                     (
                         ("Angle", rotation_angle),
@@ -273,6 +291,28 @@ if __name__ == "__main__":
                         if target_block_found:
                             break
 
+        elif CURRENT_STATE == REORIENT:
+            print("[MAIN] Reorienting robot in world")
+            rmc.orient_to(90)
+            distance_y = ping.get_distance()/100 # convert cm to m
+            rmc.orient_to(180)
+            distance_x = ping.get_distance()/100 # convert cm to m
+            
+            assumed_position = world_map.get_robot_position()[0]
+            actual_position = (distance_x, world_map.bounds[1]-distance_y)
+            difference = (
+                actual_position[0] - assumed_position[0] ,
+                actual_position[1] - assumed_position[1] 
+            )
+            
+            world_map.robot_position = actual_position
+            for block in world_map.get_blocks():
+                block.location = (
+                    block.location[0] + difference[0],
+                    block.location[1] + difference[1]
+                )
+            
+            world_map.draw_map()
 
     # plot the output data
     # world_map.draw_map()

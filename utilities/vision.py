@@ -120,6 +120,7 @@ class Camera:
         @return boxed_frame: rgb image with boxes added
         @return blocks: list of blocks identified
         """
+        # frame = cv.blur(frame, (5, 5))
         found_blocks = []
         frame = self.crop_image(frame, GRAND_CHALLENGE_ROW_CROP)
         hsv_frame = cv.cvtColor(frame, cv.COLOR_RGB2HSV)
@@ -228,7 +229,9 @@ def translate_to_world_frame(point, robo_heading, robo_pos):
 
 if __name__ == "__main__":
     from utilities.path_planner import WorldMap
-    wm = WorldMap(1, 1, None)
+    from utilities.imu import IMU
+    imu = IMU()
+    wm = WorldMap(1, 1, imu)
     cam = Camera(wm)
     
     metadata = {"position": (0,0), "heading_deg": (45.0), "time": time.time()}
@@ -236,7 +239,8 @@ if __name__ == "__main__":
     # rgb_image = cv.imread("rgb_image.jpg", cv.IMREAD_COLOR)
     # rgb_image = cv.cvtColor(rgb_image, cv.COLOR_BGR2RGB)
     cv.imwrite("rgb_image.jpg", cv.cvtColor(rgb_image, cv.COLOR_RGB2BGR))
-    # boxed_image, blocks = cam.find_blocks(rgb_image, metadata)
+    boxed_image, blocks = cam.find_blocks(rgb_image, metadata)
+    cv.imwrite("boxed_image.jpg", cv.cvtColor(rgb_image, cv.COLOR_RGB2BGR))
     # mask = np.zeros(np.shape(rgb_image)[:2]).astype(np.uint8)  # 2d shape
     # for red_hsv in [(RED_LS_LB, RED_LS_UB), (RED_HS_LB, RED_HS_UB)]:
     #     partial_mask = cv.inRange(rgb_image, red_hsv[0], red_hsv[1])

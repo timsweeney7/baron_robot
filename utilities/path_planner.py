@@ -10,7 +10,7 @@ from utilities.block import Block
 from utilities.imu import IMU
 
 MAP_EDGE_KEEPOUT = 0.3048/2  # 1 FOOT
-BLOCK_KEEPOUT = 0.3
+BLOCK_KEEPOUT = 0.35
 
 ORDER = ["RED", "GREEN", "BLUE"] * 3
 
@@ -31,7 +31,7 @@ class WorldMap:
         self.start_area_dim = (0.6096, 0.6096)
         self.map_center = (length / 2, width / 2)
         
-        x = (self.construction_area_dim[0] - MAP_EDGE_KEEPOUT) / 2 + MAP_EDGE_KEEPOUT
+        x = (self.construction_area_dim[0]) / 2 
         y = -1 * x + self.bounds[1]
         self.construction_area_center = (x, y)
         
@@ -228,6 +228,10 @@ class WorldMap:
 
         if self.axis is None or self.figure is None:
             print("[PLAN] No map to draw on")
+            return
+        
+        if path is None:
+            print("[PLAN] Attempted to draw NoneType")
             return
 
         for i in range(len(path) - 1):

@@ -42,3 +42,12 @@ class pingSensor:
 
     def game_over(self):
         gpio.cleanup()
+
+
+if __name__ == "__main__":
+    ping = pingSensor()
+    
+    while True:
+        distance = ping.get_distance()
+        print(f"Distance: {distance} cm")
+        input('...')

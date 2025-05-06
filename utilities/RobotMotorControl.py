@@ -14,6 +14,17 @@ BACKWARD_RIGHT = 19
 FORWARD_RIGHT = 26
 
 
+TURN_FAST_DUTY_CYCLE = 80
+TURN_SLOW_DUTY_CYCLE = 50
+
+# FAST_DUTY_CYCLE = 45
+# SLOW_DUTY_CYCLE = 40
+
+
+FORWARD_DUTY_CYCLE = 60
+BACKWARD_DUTY_CYCLE = 60
+
+
 class PID_Control:
 
     def __init__(self, Kp, Ki, Kd):
@@ -116,8 +127,9 @@ class RobotMotorControl:
         step = self.movements[self.step_count]
         if step[0] == "Angle":
             angle = step[1]
-            # print(f"[RMC] Goal Angle: {angle}")
+            print(f"[RMC] Goal Angle: {angle}")
             result_angle = self.orient_to(angle)
+            print(f"[RMC] Acutalized Angle: {result_angle}")
             retval = ("Angle", result_angle)
         elif step[0] == "Distance":
             distance = step[1]
@@ -137,10 +149,9 @@ class RobotMotorControl:
         pid = PID_Control(Kp=1.75, Ki=0, Kd=0)
 
         distance_in_ticks = self.odom.distance_to_ticks(distance)
-        DUTY_CYCLE = 50
-        self.pi.set_PWM_dutycycle(FORWARD_RIGHT, DUTY_CYCLE)
-        self.pi.set_PWM_dutycycle(FORWARD_LEFT, DUTY_CYCLE)
-        new_duty_cycle = DUTY_CYCLE
+        self.pi.set_PWM_dutycycle(FORWARD_RIGHT, FORWARD_DUTY_CYCLE)
+        self.pi.set_PWM_dutycycle(FORWARD_LEFT, FORWARD_DUTY_CYCLE)
+        new_duty_cycle = FORWARD_DUTY_CYCLE
 
         start_heading = self.imu.get_heading()
         # print(f"[RMC][Forward] Start heading: {start_heading}")
@@ -196,7 +207,7 @@ class RobotMotorControl:
         """
 
         distance_in_ticks = self.odom.distance_to_ticks(distance)
-        DUTY_CYCLE = 59
+        DUTY_CYCLE = 50
         self.pi.set_PWM_dutycycle(BACKWARD_RIGHT, DUTY_CYCLE)
         self.pi.set_PWM_dutycycle(BACKWARD_LEFT, DUTY_CYCLE)
 
@@ -249,17 +260,19 @@ class RobotMotorControl:
             )
             print(f"\t Target Heading: {target_heading}")
 
-        # FAST_DUTY_CYCLE = 80
-        # SLOW_DUTY_CYCLE = 50
+        FAST_DUTY_CYCLE = 80
+        SLOW_DUTY_CYCLE = 50
 
-        FAST_DUTY_CYCLE = 45
-        SLOW_DUTY_CYCLE = 40
+        # FAST_DUTY_CYCLE = 45
+        # SLOW_DUTY_CYCLE = 40
 
         # Ignore very small adjustments
         if -0.5 <= angle_deg <= 0.5:
             pass
         # Determine direction to turn
         elif angle_deg >= 0:
+            stuck_rotate_fix = 0
+            stuck_rotate_counter = 0
             # print(f"[DEBUG] Rotating Left")
             # initialize pwm signal to control motor
             self.pi.set_PWM_range(FORWARD_RIGHT, 100)
@@ -276,8 +289,11 @@ class RobotMotorControl:
                     current=heading, target=target_heading, tolerance=25
                 ):
                     # print("[DEBUG] Within Tolerance")
-                    self.pi.set_PWM_dutycycle(FORWARD_RIGHT, SLOW_DUTY_CYCLE)
-                    self.pi.set_PWM_dutycycle(BACKWARD_LEFT, SLOW_DUTY_CYCLE)
+                    self.pi.set_PWM_dutycycle(FORWARD_RIGHT, SLOW_DUTY_CYCLE + stuck_rotate_fix)
+                    self.pi.set_PWM_dutycycle(BACKWARD_LEFT, SLOW_DUTY_CYCLE + stuck_rotate_fix)
+                    if stuck_rotate_counter >= 10:
+                        stuck_rotate_fix += 1
+                        stuck_rotate_counter = 0
                 if self._has_passed_counterclockwise(
                     start_heading, target_heading, heading
                 ):
@@ -285,6 +301,8 @@ class RobotMotorControl:
                 time.sleep(0.05)
 
         elif angle_deg < 0:
+            stuck_rotate_fix = 0
+            stuck_rotate_counter = 0
             # print(f"[DEBUG] Rotating Right")
             # initialize pwm signal to control motor
             self.pi.set_PWM_range(FORWARD_LEFT, 100)
@@ -300,11 +318,15 @@ class RobotMotorControl:
                 if self._within_tolerance(
                     current=heading, target=target_heading, tolerance=25
                 ):
-                    self.pi.set_PWM_dutycycle(BACKWARD_RIGHT, SLOW_DUTY_CYCLE)
-                    self.pi.set_PWM_dutycycle(FORWARD_LEFT, SLOW_DUTY_CYCLE)
+                    self.pi.set_PWM_dutycycle(BACKWARD_RIGHT, SLOW_DUTY_CYCLE + stuck_rotate_fix)
+                    self.pi.set_PWM_dutycycle(FORWARD_LEFT, SLOW_DUTY_CYCLE + stuck_rotate_fix)
+                    if stuck_rotate_counter >= 10:
+                        stuck_rotate_fix += 1
+                        stuck_rotate_counter = 0
+                    
                 if self._has_passed_clockwise(start_heading, target_heading, heading):
                     break
-                time.sleep(0.01)
+                time.sleep(0.05)
 
         self.stop_motion()
         time.sleep(0.3)  # wait for robot to settle
