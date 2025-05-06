@@ -4,7 +4,7 @@ from typing import List
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.ticker as ticker
-from queue import Queue
+import copy
 
 from utilities.block import Block
 from utilities.imu import IMU
@@ -17,7 +17,7 @@ ORDER = ["RED", "GREEN", "BLUE"] * 3
 
 class WorldMap:
 
-    def __init__(self, length, width, imu: IMU):
+    def __init__(self, length, width, imu: IMU, _debug_heading = None):
         self.blocks = []  # list of x,y locations of objects in the world
         self.bounds = (
             length,
@@ -37,6 +37,8 @@ class WorldMap:
         
         self.previous_paths = []
         self.previous_planned_paths = []
+        
+        self._debug_heading = _debug_heading
 
     def get_robot_position(self):
         """Returns the position and orientation of the robot"""
@@ -44,20 +46,22 @@ class WorldMap:
         # For DEBUG ONLY
         if self.imu is None:
             print("[PLAN] WORLD MAP IS IN DEBUG MODE !!!")
-            return self.robot_position, 0
+            return self.robot_position, self._debug_heading
 
         return self.robot_position, self.imu.get_heading()
 
-    def update_blocks(self, new_blocks: List[Block]):
+    def update_blocks(self, new_blocks: List[Block], metadata):
         """
         Updates the location of blocks in the world map based on the metadata provided
         @param blocks: List of block positions from the robot frame of reference
         """
         
+        # add blocks to map
         for new_block in new_blocks:
             found_match = False
             for block in self.blocks:
                 if new_block == block:
+                    print("hehehhehehe")
                     # Average positions
                     updated_x = (block.location[0] + new_block.location[0]) / 2
                     updated_y = (block.location[1] + new_block.location[1]) / 2
@@ -66,7 +70,50 @@ class WorldMap:
                     break
             if not found_match:
                 self.blocks.append(new_block)
+            
+        # remove blocks in map that aren't present
+        robo_position = metadata['position']
+        robo_heading = metadata['heading_deg']
+        rotated_old_blocks = self.translate_to_robo_position(
+            robo_position, robo_heading, self.blocks
+        )
+        rotated_new_blocks = self.translate_to_robo_position(
+            robo_position, robo_heading, new_blocks
+        )
+        remove_idxs = []
+        for i, block in enumerate(rotated_old_blocks):  
+            x, y = block.location
+            if (y < x * np.sqrt(3)/3  and
+                y > -1 * x * np.sqrt(3)/3 and
+                block not in rotated_new_blocks):
+                    remove_idxs.append(i)
+        self.blocks = [
+            block for i, block in enumerate(self.blocks) if i not in remove_idxs
+            ]
+                
+                
+        
+    def translate_to_robo_position(self, robo_position, theta_d, blocks):
+        theta_r = np.deg2rad(theta_d)
+        cos_t = np.cos(theta_r)
+        sin_t = np.sin(theta_r)
+        x_r, y_r = robo_position
 
+        # Construct the inverse transformation matrix
+        T_inv = np.array([
+            [ cos_t,  sin_t, -x_r * cos_t - y_r * sin_t],
+            [-sin_t,  cos_t,  x_r * sin_t - y_r * cos_t],
+            [ 0.0,    0.0,    1.0]
+        ])
+        
+        blocks_rf = copy.deepcopy(blocks)
+        for block in blocks_rf:
+            block.location = np.array(block.location)
+            block.location = T_inv @ np.array([block.location[0], block.location[1], 1])
+            block.location = (block.location[0], block.location[1])
+
+        return blocks_rf
+        
     def get_blocks(self):
         return self.blocks
 

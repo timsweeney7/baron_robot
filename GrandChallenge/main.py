@@ -42,7 +42,7 @@ def capture_and_process_image(cam:Camera, wm:WorldMap):
     frame, blocks = cam.find_blocks(frame=frame, metadata=metadata)
     cv.imwrite("block_image.jpg", cv.cvtColor(frame, cv.COLOR_RGB2BGR))
 
-    wm.update_blocks(blocks)
+    wm.update_blocks(blocks, metadata)
     print("Number of blocks: ", len(wm.get_blocks()))
     wm.draw_map()
     
