@@ -56,12 +56,23 @@ class WorldMap:
         @param blocks: List of block positions from the robot frame of reference
         """
         
+        # if block is in the construction zone, ignore it
+        blocks_in_goal = []
+        for i, new_block in enumerate(new_blocks):
+            x, y = new_block.location
+            if (x < self.construction_area_dim[0] and
+                y > self.bounds[1] - self.construction_area_dim[1]):
+                blocks_in_goal.append(i)
+        new_blocks = [
+                block for i, block in enumerate(new_blocks) if i not in blocks_in_goal
+        ]
+                
+        
         # add blocks to map
         for new_block in new_blocks:
             found_match = False
             for block in self.blocks:
                 if new_block == block:
-                    print("hehehhehehe")
                     # Average positions
                     updated_x = (block.location[0] + new_block.location[0]) / 2
                     updated_y = (block.location[1] + new_block.location[1]) / 2
@@ -118,7 +129,7 @@ class WorldMap:
         return self.blocks
 
     def draw_map(self):
-                
+        plt.close('all')
         fig, ax = plt.subplots()  # << New figure and axes each time
         self.axis = ax
         self.figure = fig
@@ -196,8 +207,8 @@ class WorldMap:
         ax.set_xticks(np.arange(0, x_end, meters_interval))
         ax.set_yticks(np.arange(0, y_end, meters_interval))
         # Set major tick formatter to convert from meters to feet
-        ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x * meters_to_feet:.1f}"))
-        ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f"{y * meters_to_feet:.1f}"))
+        ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x * meters_to_feet:.1f}\n{x:.1f}"))
+        ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f"{y * meters_to_feet:.1f}\n{y:.1f}"))
 
         # Label axes accordingly
         ax.set_xlabel("Distance (ft)")
@@ -243,7 +254,6 @@ class WorldMap:
     def remove_block(self, block: Block):
         """Removes a block from the world map"""
         self.blocks.remove(block)
-        self.draw_map()
         print(f"[PLAN] Removed {block.color} block at {block.location}")
         return True
     
@@ -455,6 +465,7 @@ class PathPlanner:
         )
 
     def astar(self, start, goal, target_color=None, debug=0):
+        """ Gets a path from start to goal in x,y coordinates """
         # setup
         self.target_color = target_color
         open_heap = []

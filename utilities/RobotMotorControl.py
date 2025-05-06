@@ -282,7 +282,7 @@ class RobotMotorControl:
                     start_heading, target_heading, heading
                 ):
                     break
-                time.sleep(0.01)
+                time.sleep(0.05)
 
         elif angle_deg < 0:
             # print(f"[DEBUG] Rotating Right")

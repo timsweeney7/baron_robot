@@ -27,7 +27,7 @@ RED_LS_UB = np.array([15, 255, 255])
 RED_HS_LB = np.array([165, 150, 105])
 RED_HS_UB = np.array([180, 255, 255])
 
-GREEN_LB = np.array([40, 108, 165])
+GREEN_LB = np.array([40, 60, 110])
 GREEN_UB = np.array([80, 255, 255])
 
 CYAN_LB = np.array([100, 140, 100])
@@ -136,7 +136,6 @@ class Camera:
             (CYAN_LB, CYAN_UB, RGB_CYAN, "CYAN"),
             (RED_LS_LB, RED_LS_UB, RGB_RED, "RED")
         ]):
-            print("Block color: ", color[3])
             # handle special case for red blocks
             if i == 2:
                 mask = np.zeros(np.shape(frame)[:2]).astype(np.uint8)  # 2d shape
