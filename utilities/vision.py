@@ -22,12 +22,12 @@ from utilities.block import Block
 
 
 # HOME ----------------
-RED_LS_LB = np.array([0, 215, 100])
+RED_LS_LB = np.array([0, 220, 100])
 RED_LS_UB = np.array([15, 255, 255])
 RED_HS_LB = np.array([165, 150, 105])
 RED_HS_UB = np.array([180, 255, 255])
 
-GREEN_LB = np.array([40, 108, 100])
+GREEN_LB = np.array([40, 108, 165])
 GREEN_UB = np.array([80, 255, 255])
 
 CYAN_LB = np.array([100, 140, 100])
@@ -110,7 +110,7 @@ class Camera:
         distance = A / (bounding_height - B)
         return distance
 
-    def find_blocks(self, frame, metadata) -> Tuple[np.array, List[Block]]:
+    def find_blocks(self, frame, metadata, strict=True) -> Tuple[np.array, List[Block]]:
         """
         Searches the image for red, green, and cyan blocks.  Adds a bounding box around each one
         and marks the center.  Determines block position in world frame
@@ -131,13 +131,24 @@ class Camera:
             color=(0, 0, 0),
         )
 
-        # Find CYAN and GREEN blocks
-        for color in [
+        for i, color in enumerate([
             (GREEN_LB, GREEN_UB, RGB_GREEN, "GREEN"),
             (CYAN_LB, CYAN_UB, RGB_CYAN, "CYAN"),
-        ]:
-            # create mask
-            mask = cv.inRange(hsv_frame, color[0], color[1])
+            (RED_LS_LB, RED_LS_UB, RGB_RED, "RED")
+        ]):
+            print("Block color: ", color[3])
+            # handle special case for red blocks
+            if i == 2:
+                mask = np.zeros(np.shape(frame)[:2]).astype(np.uint8)  # 2d shape
+                for red_hsv in [(RED_LS_LB, RED_LS_UB), (RED_HS_LB, RED_HS_UB)]:
+                    partial_mask = cv.inRange(hsv_frame, red_hsv[0], red_hsv[1])
+                    mask = cv.bitwise_or(mask, partial_mask)
+                cv.imwrite("mask_debug.jpg", mask)
+            else:
+                # create mask
+                mask = cv.inRange(hsv_frame, color[0], color[1])
+                cv.imwrite("mask_debug.jpg", mask)
+                
             # find contours
             contours, _ = cv.findContours(
                 mask, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_NONE
@@ -149,9 +160,17 @@ class Camera:
                 continue
             # Place a bounding box around the largest contour
             x, y, w, h = cv.boundingRect(contours[0])
-            # print(f"{color[2]} bounding box height: {h}")
+            
+            
+
             if h < 12:
                 continue
+            # if strict:
+            #     if  h/w < 1.1 or h/w > 1.6:  # vertical block 
+            #         continue
+            
+            
+            
             # Calculate the center of the bounding box
             center = (int((x + x + w) / 2), int((y + y + h) / 2))
             # Draw the bounding box and center in the image.
@@ -187,60 +206,6 @@ class Camera:
             )
             found_blocks.append(out_block)
 
-        # Repeat the process for RED blocks.
-        # RED wraps from 0 to 180 in HSV colorspace so we need two loops
-        mask = np.zeros(np.shape(frame)[:2]).astype(np.uint8)  # 2d shape
-        for color in [(RED_LS_LB, RED_LS_UB), (RED_HS_LB, RED_HS_UB)]:
-            # create mask
-            partial_mask = cv.inRange(hsv_frame, color[0], color[1])
-            mask = cv.bitwise_or(mask, partial_mask)
-
-        # find contours
-        contours, _ = cv.findContours(
-            mask, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_NONE
-        )
-        # non_zero_coords = cv2.findNonZero(mask)
-        # Sort contours by area in descending order
-        contours = sorted(contours, key=cv.contourArea, reverse=True)
-        if len(contours) != 0:
-            # Place a bounding box around the largest contour
-            x, y, w, h = cv.boundingRect(contours[0])
-            if h > 12:
-                # Calculate the center of the bounding box
-                center = (int((x + x + w) / 2), int((y + y + h) / 2))
-                # Draw the bounding box and center in the image.
-                output_frame = cv.rectangle(
-                    output_frame, (x, y), (x + w, y + h), RGB_RED, 2
-                )
-                output_frame = cv.circle(
-                    output_frame, center=center, radius=3, color=RGB_RED, thickness=-1
-                )
-                # Find the angle of the robot to the block
-                angle = -1 * (center[0] - IMAGE_WIDTH / 2) * DEG_PER_PIXEL
-                dist = self.calculate_block_distance(h)
-                # Determine location locally
-                x_block = dist * np.cos(np.deg2rad(angle))
-                y_block = dist * np.sin(np.deg2rad(angle))
-                # Determine location in world frame
-                location = translate_to_world_frame(
-                    (x_block, y_block), metadata["heading_deg"], metadata["position"]
-                )
-                # Determine if the block is knocked over based on aspect ratio
-                if w > h:
-                    knocked_over = True
-                else:
-                    knocked_over = False
-                # Create a block object to return
-                out_block = Block(
-                    color="RED",
-                    location=location,
-                    knocked_over=knocked_over,
-                    bounding_height=h,
-                    angle_to_robo=angle,
-                    bounding_origin=(x, y),
-                )
-                found_blocks.append(out_block)
-
         return output_frame, found_blocks
 
 
@@ -266,9 +231,23 @@ if __name__ == "__main__":
     from utilities.path_planner import WorldMap
     wm = WorldMap(1, 1, None)
     cam = Camera(wm)
+    
+    metadata = {"position": (0,0), "heading_deg": (45.0), "time": time.time()}
     rgb_image, metadata = cam.capture_image()
+    # rgb_image = cv.imread("rgb_image.jpg", cv.IMREAD_COLOR)
+    # rgb_image = cv.cvtColor(rgb_image, cv.COLOR_BGR2RGB)
     cv.imwrite("rgb_image.jpg", cv.cvtColor(rgb_image, cv.COLOR_RGB2BGR))
-    boxed_image, blocks = cam.find_blocks(rgb_image, metadata)
+    # boxed_image, blocks = cam.find_blocks(rgb_image, metadata)
+    # mask = np.zeros(np.shape(rgb_image)[:2]).astype(np.uint8)  # 2d shape
+    # for red_hsv in [(RED_LS_LB, RED_LS_UB), (RED_HS_LB, RED_HS_UB)]:
+    #     partial_mask = cv.inRange(rgb_image, red_hsv[0], red_hsv[1])
+    #     mask = cv.bitwise_or(mask, partial_mask)
+    # cv.imwrite("mask.jpg", mask)
+    # corners = cv.goodFeaturesToTrack(image=mask, maxCorners=7, qualityLevel=0.01, minDistance=25)
+    # corners = np.int0(corners)
 
-    cv.imwrite("boxedImage.jpg", cv.cvtColor(boxed_image, cv.COLOR_RGB2BGR))
-    print(f"Image shape: {np.shape(boxed_image)}")
+    # for i in corners:
+    #     x, y = i.ravel()
+    #     cv.circle(img=rgb_image, center=(x,y), radius=4, color=(0,0,255), thickness=-1)
+
+    #     cv.imwrite("corner_Image.jpg", cv.cvtColor(rgb_image, cv.COLOR_RGB2BGR))

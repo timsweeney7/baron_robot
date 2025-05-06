@@ -27,7 +27,7 @@ END = 8
 
 # Value for determining if a block can be picked up
 # Higher values require the block to be closer to the robot
-BLOCK_IN_GRIP_RANGE = 270
+BLOCK_IN_GRIP_RANGE = 300
 
 
 def capture_and_process_image(cam:Camera, wm:WorldMap):
@@ -42,12 +42,9 @@ def capture_and_process_image(cam:Camera, wm:WorldMap):
     frame, blocks = cam.find_blocks(frame=frame, metadata=metadata)
     cv.imwrite("block_image.jpg", cv.cvtColor(frame, cv.COLOR_RGB2BGR))
 
-    if len(blocks) == 0:
-        pass
-    else:
-        wm.update_blocks(blocks)
-        print("Number of blocks: ", len(wm.get_blocks()))
-        wm.draw_map()
+    wm.update_blocks(blocks)
+    print("Number of blocks: ", len(wm.get_blocks()))
+    wm.draw_map()
     
     return blocks
 
@@ -168,7 +165,7 @@ if __name__ == "__main__":
                 # Get block heading and orient to it
                 goal_angle = target_block.angle_to_robo
                 rotation_angle = rmc.rotate_by(goal_angle)
-                forward_distance = rmc.forward(0.07)
+                forward_distance = rmc.forward(0.03)
                 collection_movements.append(
                     (
                         ("Angle", rotation_angle),
@@ -235,6 +232,7 @@ if __name__ == "__main__":
             rmc.set_path(movements)
             # make a move to the center of the map.  With every move, look for the goal block
             for _ in movements:
+                
                 take_step_update_map()
                 blocks = capture_and_process_image(cam=cam, wm=world_map)
                 input("debug 1")

@@ -3,6 +3,7 @@ import heapq
 from typing import List
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import matplotlib.ticker as ticker
 from queue import Queue
 
 from utilities.block import Block
@@ -27,6 +28,7 @@ class WorldMap:
         self.axis = None
         self.figure = None
         self.construction_area_dim = (1.2192, 1.2192)  # 4ft x 4ft
+        self.start_area_dim = (0.6096, 0.6096)
         self.map_center = (length / 2, width / 2)
         
         x = (self.construction_area_dim[0] - MAP_EDGE_KEEPOUT) / 2 + MAP_EDGE_KEEPOUT
@@ -96,6 +98,16 @@ class WorldMap:
         )
         ax.add_patch(construction_area)
         ax.scatter(*self.construction_area_center, c="black")
+        
+        # Draw the starting area
+        start_area = patches.Rectangle(
+            (0, 0),
+            width=self.start_area_dim[0],
+            height=self.start_area_dim[1],
+            facecolor="none",
+            edgecolor="black"
+        )
+        ax.add_patch(start_area)
 
         # Draw the robot
         location, heading_deg = self.get_robot_position()
@@ -117,19 +129,36 @@ class WorldMap:
             )
             ax.add_patch(circle)
             
-        ax.set_title("World Map")
-        ax.set_xlim(-1 * width * 0.02, width * 1.02)
-        ax.set_ylim(-1 * height * 0.02, height * 1.02)
-        ax.set_xlabel("Meters")
-
-        ax.set_axisbelow(True)
-        ax.grid(True, which="both", linestyle="--", linewidth=0.5)
-    
         # Draw the previous paths
         for path in self.previous_paths:
             self.draw_path_on_map(path, "blue", save_fig=False)
         for path in self.previous_planned_paths:
             self.draw_path_on_map(path, "gray", save_fig=False)
+            
+            
+        ax.set_title("World Map")
+        ax.set_xlim(-1 * width * 0.02, width * 1.02)
+        ax.set_ylim(-1 * height * 0.02, height * 1.02)
+       
+        meters_to_feet = 3.28084
+        feet_interval = 2
+        meters_interval = feet_interval / meters_to_feet  # 0.6096 meters
+        # Set fixed ticks in meters, spaced to represent 2 feet
+        x_start, x_end = ax.get_xlim()
+        y_start, y_end = ax.get_ylim()
+        ax.set_xticks(np.arange(0, x_end, meters_interval))
+        ax.set_yticks(np.arange(0, y_end, meters_interval))
+        # Set major tick formatter to convert from meters to feet
+        ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x * meters_to_feet:.1f}"))
+        ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f"{y * meters_to_feet:.1f}"))
+
+        # Label axes accordingly
+        ax.set_xlabel("Distance (ft)")
+
+        ax.set_axisbelow(True)
+        ax.grid(True, which="both", linestyle="--", linewidth=0.5)
+    
+        
 
         plt.savefig("world_map.jpg")
         # plt.show()
@@ -216,7 +245,6 @@ class WorldMap:
         angle = self.get_robot_position()[1]
         path = [start_point]
         base = start_point
-        print("start point debug: ", base)
         for i in movements:
             if i[0] == "Angle":
                 angle = i[1]
@@ -466,7 +494,7 @@ class PathPlanner:
                 parent=current
             )
         path = self.reconstruct_path(last_node)
-        self.wm.draw_path_on_map(path, "gray", True)
+        # self.wm.draw_path_on_map(path, "gray", True)
         if debug > 0:
             self.wm.draw_path_on_map(path, "red", True)
         return path
