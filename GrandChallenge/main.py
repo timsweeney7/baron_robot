@@ -20,8 +20,8 @@ MAP_LENGTH = 3.048 # 10ft
 MAP_WIDTH = 2.7432 # 9ft
 
 # ARENA ----------
-MAP_LENGTH = 3.048 # 10ft
-MAP_WIDTH = 3.048 # 10ft
+# MAP_LENGTH = 3.048 # 10ft
+# MAP_WIDTH = 3.048 # 10ft
 
 # set up state machine
 GET_NEXT_GOAL = 0
@@ -69,10 +69,10 @@ def take_step_update_map():
     world_map.draw_path_on_map(realized_path, "blue", save_fig=False)
     
 
-def do_arena_scan():
+def do_arena_scan(got_that_thang_on_me:bool=False):
     for angle in range(0, 360, 45):
         rmc.orient_to(angle)
-        capture_and_process_image(cam=cam, wm=world_map)
+        capture_and_process_image(cam=cam, wm=world_map, got_that_thang_on_me=got_that_thang_on_me)
 
 
 
@@ -164,10 +164,7 @@ if __name__ == "__main__":
             
             block_collected = False
             while not block_collected:
-                rgb_image, metadata = cam.capture_image()
-                cv.imwrite("rgb_image.jpg", cv.cvtColor(rgb_image, cv.COLOR_RGB2BGR))
-                blocked_image, blocks = cam.find_blocks(rgb_image, metadata)
-                cv.imwrite("block_image.jpg", cv.cvtColor(blocked_image, cv.COLOR_RGB2BGR))
+                blocks = capture_and_process_image(cam=cam, wm=world_map)
                 correct_color_in_frame = False
                 if len(blocks) == 0:
                     print("[MAIN] NO BLOCK DETECTED!")
@@ -194,10 +191,10 @@ if __name__ == "__main__":
                 goal_angle = target_block.angle_to_robo
                 rotation_angle = rmc.rotate_by(goal_angle)
                 forward_distance = rmc.forward(0.02)
-                collection_movements.append(
+                collection_movements.extend(
                     (
                         ("Angle", rotation_angle),
-                        ("Distance", forward_distance)
+                        ("Distance", max(forward_distance))
                     )
                 )
             # Add collection movements to world map, update robot position
@@ -216,7 +213,7 @@ if __name__ == "__main__":
                 debug=0
             )
             if path is None:
-                do_arena_scan()
+                do_arena_scan(True)
             else:
                 world_map.add_to_planned_paths(path)
                 movements = world_map.convert_points_to_movements(path)
@@ -255,6 +252,8 @@ if __name__ == "__main__":
                 goal=world_map.map_center,
                 debug=0
             )
+            if path is None:
+                do_arena_scan()
             movements = world_map.convert_points_to_movements(path)
             rmc.set_path(movements)
             # make a move to the center of the map.  With every move, look for the goal block

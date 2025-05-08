@@ -6,6 +6,7 @@ import matplotlib.patches as patches
 import matplotlib.ticker as ticker
 import copy
 
+
 from utilities.block import Block
 from utilities.imu import IMU
 
@@ -303,6 +304,7 @@ class WorldMap:
         """
         Given a list of movements the robot took, return the path in the world frame.
         """
+        print("[debug] ", movements)
         angle = self.get_robot_position()[1]
         path = [start_point]
         base = start_point
