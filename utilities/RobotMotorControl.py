@@ -17,9 +17,13 @@ FORWARD_RIGHT = 26
 # TURN_FAST_DUTY_CYCLE = 80
 # TURN_SLOW_DUTY_CYCLE = 50
 
-TURN_FAST_DUTY_CYCLE = 40
-TURN_SLOW_DUTY_CYCLE = 33
+#  Home full battery
+# TURN_FAST_DUTY_CYCLE = 35
+# TURN_SLOW_DUTY_CYCLE = 30
 
+# Home low battery
+TURN_FAST_DUTY_CYCLE = 35
+TURN_SLOW_DUTY_CYCLE = 35
 
 FORWARD_DUTY_CYCLE = 60
 BACKWARD_DUTY_CYCLE = 60
@@ -146,7 +150,7 @@ class RobotMotorControl:
         """
         distance = meters
         """
-        pid = PID_Control(Kp=1.75, Ki=0, Kd=0)
+        pid = PID_Control(Kp=0.1, Ki=0, Kd=0)
 
         distance_in_ticks = self.odom.distance_to_ticks(distance)
         self.pi.set_PWM_dutycycle(FORWARD_RIGHT, FORWARD_DUTY_CYCLE)
@@ -154,16 +158,13 @@ class RobotMotorControl:
         new_duty_cycle = FORWARD_DUTY_CYCLE
 
         start_heading = self.imu.get_heading()
-        # print(f"[RMC][Forward] Start heading: {start_heading}")
-        # print()
 
         self.odom.reset()
-
-        near_goal_switch = True
 
         while True:
 
             current_heading = self.imu.get_heading()
+            # print("[RMC] Current Heading: ", current_heading)
 
             # use offsets to avoid wrap-around 0 to 360 problem
             if start_heading > 270:
@@ -175,15 +176,8 @@ class RobotMotorControl:
                 if current_heading > 270:
                     current_heading -= 360
 
-            # print(f"[RMC][Forward] Current heading: {current_heading}")
+
             left_ticks, right_ticks = self.odom.get_ticks()
-            # if left_ticks > (distance_in_ticks - 30) or right_ticks > (
-            #     distance_in_ticks - 30
-            # ):
-            #     if near_goal_switch:
-            #         near_goal_switch = False
-            #         self.pi.set_PWM_dutycycle(FORWARD_LEFT, DUTY_CYCLE * 0.6)
-            #         self.pi.set_PWM_dutycycle(FORWARD_RIGHT, new_duty_cycle * 0.6)
 
             if left_ticks > distance_in_ticks or right_ticks > distance_in_ticks:
                 break
@@ -192,10 +186,9 @@ class RobotMotorControl:
                 setpoint=start_heading, measurement=current_heading, mv=new_duty_cycle
             )
 
-            # print(f"[RMC][Forward] New duty cycle: {new_duty_cycle}")
             self.pi.set_PWM_dutycycle(FORWARD_RIGHT, new_duty_cycle)
 
-            time.sleep(0.2)
+            time.sleep(0.25)
 
         self.stop_motion()
         time.sleep(0.4)
@@ -281,7 +274,7 @@ class RobotMotorControl:
                 # if DEBUG == True:
                 #     print(f"[RMC][rotate_by ccw] Heading: {heading}")
                 if self._within_tolerance(
-                    current=heading, target=target_heading, tolerance=25
+                    current=heading, target=target_heading, tolerance=35
                 ):
                     # print("[DEBUG] Within Tolerance")
                     self.pi.set_PWM_dutycycle(FORWARD_RIGHT, TURN_SLOW_DUTY_CYCLE + stuck_rotate_fix)
@@ -289,6 +282,7 @@ class RobotMotorControl:
                     if stuck_rotate_counter >= 10:
                         stuck_rotate_fix += 1
                         stuck_rotate_counter = 0
+                    stuck_rotate_counter += 1
                 if self._has_passed_counterclockwise(
                     start_heading, target_heading, heading
                 ):
@@ -311,15 +305,17 @@ class RobotMotorControl:
                 # if DEBUG == True:
                 #     print(f"[RMC][rotate_by cw] Heading: {heading}")
                 if self._within_tolerance(
-                    current=heading, target=target_heading, tolerance=25
+                    current=heading, target=target_heading, tolerance=35
                 ):
                     self.pi.set_PWM_dutycycle(BACKWARD_RIGHT, TURN_SLOW_DUTY_CYCLE + stuck_rotate_fix)
                     self.pi.set_PWM_dutycycle(FORWARD_LEFT, TURN_SLOW_DUTY_CYCLE + stuck_rotate_fix)
                     if stuck_rotate_counter >= 10:
                         stuck_rotate_fix += 1
                         stuck_rotate_counter = 0
-                    
-                if self._has_passed_clockwise(start_heading, target_heading, heading):
+                    stuck_rotate_counter += 1
+                if self._has_passed_clockwise(
+                    start_heading, target_heading, heading
+                ):
                     break
                 time.sleep(0.05)
 
@@ -386,7 +382,7 @@ if __name__ == "__main__":
         tf = 1
         if key_press.lower() == "w":
             # rmc.forward(1.397)
-            rmc.forward(2)
+            rmc.forward(2.5)
             time.sleep(0.4)
             left, right = rmc.odom.get_distance()
             print("Distance rolled - Left: ", left, "\tRight: ", right)

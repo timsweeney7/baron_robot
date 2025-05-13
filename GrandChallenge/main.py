@@ -36,10 +36,19 @@ SCAN_AREA = 9
 END = 8
 START = 10
 REORIENT = 11
+CLEANUP = 12
 
 # Value for determining if a block can be picked up
 # Higher values require the block to be closer to the robot
 BLOCK_IN_GRIP_RANGE = 300
+
+# after 3 blocks, reorient the robot
+reorient_counter = 0
+
+
+
+fourcc = cv.VideoWriter_fourcc(*'mp4v')
+out = cv.VideoWriter('drive_video.mp4', fourcc, 1.0, (800, 456))
 
 
 def capture_and_process_image(cam:Camera, wm:WorldMap, got_that_thang_on_me:bool=False):
@@ -48,10 +57,13 @@ def capture_and_process_image(cam:Camera, wm:WorldMap, got_that_thang_on_me:bool
     Returns False if no blocks are identified.
     """
     frame, metadata = cam.capture_image()
-    print("metadata: ", metadata)
+    # print("metadata: ", metadata)
     cv.imwrite("rgb_image.jpg", cv.cvtColor(frame, cv.COLOR_RGB2BGR))
     frame, blocks = cam.find_blocks(frame=frame, metadata=metadata)
-    cv.imwrite("block_image.jpg", cv.cvtColor(frame, cv.COLOR_RGB2BGR))
+    bgr_frame = cv.cvtColor(frame, cv.COLOR_RGB2BGR)
+    cv.imwrite("block_image.jpg", bgr_frame)
+    
+    out.write(bgr_frame)
     
     if got_that_thang_on_me:
         blocks = [block for block in blocks if block.color != target_color]
@@ -66,13 +78,19 @@ def take_step_update_map():
     realized_movement = rmc.drive_next_path_step()
     realized_path = world_map.convert_movements_to_points(position, [realized_movement])
     world_map.add_to_driven_path(realized_path)
-    world_map.draw_path_on_map(realized_path, "blue", save_fig=False)
     
 
 def do_arena_scan(got_that_thang_on_me:bool=False):
+    print("[MAIN] Doing arena scan")
     for angle in range(0, 360, 45):
         rmc.orient_to(angle)
         capture_and_process_image(cam=cam, wm=world_map, got_that_thang_on_me=got_that_thang_on_me)
+        
+def do_pickup_area_scan():
+    print("[MAIN] Scanning pickup area")
+    for angle in [0, 45, -45]:
+        rmc.orient_to(angle)
+        capture_and_process_image(cam=cam, wm=world_map, got_that_thang_on_me=False)
 
 
 
@@ -106,11 +124,12 @@ if __name__ == "__main__":
             rmc.orient_to(45)
             capture_and_process_image(cam=cam, wm=world_map)
             CURRENT_STATE = GET_NEXT_GOAL
+            # input("1")
 
         if CURRENT_STATE == GET_NEXT_GOAL:
                         
             if len(block_order) == 0:
-                CURRENT_STATE = END
+                CURRENT_STATE = CLEANUP
                 continue
             # get the next target then remove from list
             target_color = block_order[0]
@@ -148,6 +167,7 @@ if __name__ == "__main__":
             rmc.set_path(movements)
             CURRENT_STATE = DRIVE_PATH_TO_BLOCK
 
+
         elif CURRENT_STATE == DRIVE_PATH_TO_BLOCK:
             print("[Main] Driving path")
             for step in movements:
@@ -156,6 +176,7 @@ if __name__ == "__main__":
             world_map.draw_map()
             CURRENT_STATE = COLLECT_BLOCK
             print("[Main] Path complete")
+
 
         elif CURRENT_STATE == COLLECT_BLOCK:
             print("[Main] Collecting block")
@@ -177,16 +198,29 @@ if __name__ == "__main__":
                     print("[MAIN] Correct color block not found in frame")
                     rmc.rotate_by(30)
                     continue
+                
                 if target_block.bounding_origin[1] >= BLOCK_IN_GRIP_RANGE: # if bounding box is low in frame
-                    rmc.close_gripper()
-                    block_collected = True
-                    print(f"[MAIN] {target_block.color} block collected!")
-                    try:
-                        world_map.remove_block(goal)
-                    except:
-                        ValueError("[MAIN] Target block already removed.")
-                    CURRENT_STATE = PLAN_PATH_TO_CONSTRUCTION
-                    continue
+                    if target_block.angle_to_robo < 10:
+                        rmc.close_gripper()
+                        block_collected = True
+                        print(f"[MAIN] {target_block.color} block collected!")
+                        try:
+                            world_map.remove_block(goal)
+                        except:
+                            ValueError("[MAIN] Target block already removed.")
+                        CURRENT_STATE = PLAN_PATH_TO_CONSTRUCTION
+                        continue
+                    else:
+                        # Rotate to Block
+                        goal_angle = target_block.angle_to_robo
+                        rotation_angle = rmc.rotate_by(goal_angle)
+                        collection_movements.append(
+                            (
+                                ("Angle", rotation_angle)
+                            )
+                        )
+                        continue
+                
                 # Get block heading and orient to it
                 goal_angle = target_block.angle_to_robo
                 rotation_angle = rmc.rotate_by(goal_angle)
@@ -200,13 +234,17 @@ if __name__ == "__main__":
             # Add collection movements to world map, update robot position
             collection_path = world_map.convert_movements_to_points(start_point, collection_movements)
             world_map.add_to_driven_path(collection_path)
-            # world_map.draw_path_on_map(collection_path, "blue", save_fig=True)
             world_map.draw_map()
+            
             
         elif CURRENT_STATE == PLAN_PATH_TO_CONSTRUCTION:
             print("[MAIN] Delivering block")
             start = world_map.get_robot_position()[0]
             goal = world_map.construction_area_center
+            # Remove any block from the world map that the robot is already in the keepout of
+            
+            world_map.remove_blocks_already_in_keepout(start)
+
             path = planner.astar(
                 start=start, 
                 goal=goal, 
@@ -220,12 +258,14 @@ if __name__ == "__main__":
                 rmc.set_path(movements)
                 CURRENT_STATE = DRIVE_PATH_TO_CONSTRUCTION
             
+            
         elif CURRENT_STATE == DRIVE_PATH_TO_CONSTRUCTION:
             print("[Main] Driving path to construction")
             for step in movements:
                 take_step_update_map()
                 capture_and_process_image(cam=cam, wm=world_map, got_that_thang_on_me=True)
             CURRENT_STATE = RELEASE_BLOCK
+            
             
         elif CURRENT_STATE == RELEASE_BLOCK:
             print("[MAIN] Releasing block")
@@ -239,10 +279,17 @@ if __name__ == "__main__":
                 ("Distance", realized_distance)
             ]
             realized_path = world_map.convert_movements_to_points(start_point, realized_movements)
-            world_map.draw_path_on_map(realized_path, "blue", save_fig=True)
             world_map.add_to_driven_path(realized_path)
             
+            reorient_counter += 1
+            print("[MAIN] Reorient counter: ", reorient_counter)
+            if reorient_counter >= 3:
+                CURRENT_STATE = REORIENT
+                reorient_counter = 0
+                continue
+            
             CURRENT_STATE = GET_NEXT_GOAL
+
 
         elif CURRENT_STATE == SEARCH:
             print("[MAIN] Entered Search Mode")
@@ -254,6 +301,7 @@ if __name__ == "__main__":
             )
             if path is None:
                 do_arena_scan()
+                continue
             movements = world_map.convert_points_to_movements(path)
             rmc.set_path(movements)
             # make a move to the center of the map.  With every move, look for the goal block
@@ -265,7 +313,6 @@ if __name__ == "__main__":
                     # loop through updated world map blocks looking for goal
                     for block in world_map.blocks:
                         if block.color == target_color:
-                            # Add the realized movements to the world map
                             goal = block
                             CURRENT_STATE = PLAN_PATH_TO_BLOCK
                             target_block_found = True
@@ -294,9 +341,11 @@ if __name__ == "__main__":
             print("[MAIN] Reorienting robot in world")
             rmc.orient_to(90)
             distance_y = ping.get_distance()/100 # convert cm to m
+            print("[MAIN] Distance Y: ", distance_y)
             rmc.orient_to(180)
             distance_x = ping.get_distance()/100 # convert cm to m
             
+            print("[MAIN debug] Heading: ", world_map.get_robot_position()[1])
             assumed_position = world_map.get_robot_position()[0]
             actual_position = (distance_x, world_map.bounds[1]-distance_y)
             difference = (
@@ -310,13 +359,36 @@ if __name__ == "__main__":
                     block.location[0] + difference[0],
                     block.location[1] + difference[1]
                 )
+                
+            print("[MAIN debug] Heading: ", world_map.get_robot_position()[1])
             
             world_map.draw_map()
+            
+            CURRENT_STATE = GET_NEXT_GOAL
+            
+            
+        elif CURRENT_STATE == CLEANUP:
+            
+            blocks = world_map.get_blocks()
+            
+            if len(blocks) == 0:
+                do_pickup_area_scan()
+                blocks = world_map.get_blocks()
+                if len(blocks) == 0:
+                    CURRENT_STATE == END
+                else:
+                    continue
+                
+            else:
+                goal = blocks[0]
+                target_color = blocks[0].color
+                CURRENT_STATE == PLAN_PATH_TO_BLOCK
+                continue
 
-    # plot the output data
-    # world_map.draw_map()
+
 
     # State is now END
     odom.kill()
     imu.kill()
+    world_map.kill()
     print("[Main] Course complete")

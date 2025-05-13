@@ -10,18 +10,7 @@ from utilities.path_planner import WorldMap
 from utilities.block import Block
 
 
-# ARENA -------------
-# RED_LB = np.array([0, 80, 0])
-# RED_UB = np.array([10, 255, 255])
-
-# GREEN_LB = np.array([25, 80, 0])
-# GREEN_UB = np.array([75, 255, 255])
-
-# CYAN_LB = np.array([80, 80, 0])
-# CYAN_UB = np.array([105, 255, 255])
-
-
-# HOME ----------------
+# ARENA ----------------
 RED_LS_LB = np.array([0, 220, 100])
 RED_LS_UB = np.array([15, 255, 255])
 RED_HS_LB = np.array([165, 150, 105])
@@ -34,17 +23,17 @@ CYAN_LB = np.array([100, 140, 100])
 CYAN_UB = np.array([110, 255, 255])
 
 
-# ON THE PORCH ----------------
-# RED_LS_LB = np.array([0, 180, 100])
-# RED_LS_UB = np.array([15, 255, 255])
-# RED_HS_LB = np.array([165, 180, 150])
-# RED_HS_UB = np.array([180, 255, 255])
+# HOME ----------------
+RED_LS_LB = np.array([0, 220, 100])
+RED_LS_UB = np.array([15, 255, 255])
+RED_HS_LB = np.array([165, 150, 105])
+RED_HS_UB = np.array([180, 255, 255])
 
-# GREEN_LB = np.array([40, 100, 0])
-# GREEN_UB = np.array([80, 255, 255])
+GREEN_LB = np.array([40, 60, 110])
+GREEN_UB = np.array([80, 255, 255])
 
-# CYAN_LB = np.array([100, 140, 100])
-# CYAN_UB = np.array([110, 255, 255])
+CYAN_LB = np.array([100, 140, 80])
+CYAN_UB = np.array([115, 255, 255])
 
 
 # ------------------------------
@@ -120,7 +109,7 @@ class Camera:
         @return boxed_frame: rgb image with boxes added
         @return blocks: list of blocks identified
         """
-        # frame = cv.blur(frame, (5, 5))
+        frame = cv.blur(frame, (5, 5))
         found_blocks = []
         frame = self.crop_image(frame, GRAND_CHALLENGE_ROW_CROP)
         hsv_frame = cv.cvtColor(frame, cv.COLOR_RGB2HSV)
@@ -236,21 +225,7 @@ if __name__ == "__main__":
     
     metadata = {"position": (0,0), "heading_deg": (45.0), "time": time.time()}
     rgb_image, metadata = cam.capture_image()
-    # rgb_image = cv.imread("rgb_image.jpg", cv.IMREAD_COLOR)
-    # rgb_image = cv.cvtColor(rgb_image, cv.COLOR_BGR2RGB)
     cv.imwrite("rgb_image.jpg", cv.cvtColor(rgb_image, cv.COLOR_RGB2BGR))
     boxed_image, blocks = cam.find_blocks(rgb_image, metadata)
     cv.imwrite("boxed_image.jpg", cv.cvtColor(rgb_image, cv.COLOR_RGB2BGR))
-    # mask = np.zeros(np.shape(rgb_image)[:2]).astype(np.uint8)  # 2d shape
-    # for red_hsv in [(RED_LS_LB, RED_LS_UB), (RED_HS_LB, RED_HS_UB)]:
-    #     partial_mask = cv.inRange(rgb_image, red_hsv[0], red_hsv[1])
-    #     mask = cv.bitwise_or(mask, partial_mask)
-    # cv.imwrite("mask.jpg", mask)
-    # corners = cv.goodFeaturesToTrack(image=mask, maxCorners=7, qualityLevel=0.01, minDistance=25)
-    # corners = np.int0(corners)
 
-    # for i in corners:
-    #     x, y = i.ravel()
-    #     cv.circle(img=rgb_image, center=(x,y), radius=4, color=(0,0,255), thickness=-1)
-
-    #     cv.imwrite("corner_Image.jpg", cv.cvtColor(rgb_image, cv.COLOR_RGB2BGR))

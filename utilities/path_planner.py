@@ -5,15 +5,15 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.ticker as ticker
 import copy
-
+import threading
+import cv2 as cv
+from io import BytesIO
 
 from utilities.block import Block
 from utilities.imu import IMU
 
 MAP_EDGE_KEEPOUT = 0.3048/2  # 1 FOOT
 BLOCK_KEEPOUT = 0.35
-
-ORDER = ["RED", "GREEN", "BLUE"] * 3
 
 
 class WorldMap:
@@ -40,100 +40,38 @@ class WorldMap:
         self.previous_planned_paths = []
         
         self._debug_heading = _debug_heading
-
-    def get_robot_position(self):
-        """Returns the position and orientation of the robot"""
-
-        # For DEBUG ONLY
-        if self.imu is None:
-            print("[PLAN] WORLD MAP IS IN DEBUG MODE !!!")
-            return self.robot_position, self._debug_heading
-
-        return self.robot_position, self.imu.get_heading()
-
-    def update_blocks(self, new_blocks: List[Block], metadata):
-        """
-        Updates the location of blocks in the world map based on the metadata provided
-        @param blocks: List of block positions from the robot frame of reference
-        """
         
-        # if block is in the construction zone, ignore it
-        blocks_in_goal = []
-        for i, new_block in enumerate(new_blocks):
-            x, y = new_block.location
-            if (x < self.construction_area_dim[0] and
-                y > self.bounds[1] - self.construction_area_dim[1]):
-                blocks_in_goal.append(i)
-        new_blocks = [
-                block for i, block in enumerate(new_blocks) if i not in blocks_in_goal
-        ]
-                
+        self.lock1 = threading.Lock()
+        self.lock2 = threading.Lock()
+        self.lock3 = threading.Lock()
+        self._T1 = threading.Thread(target=self._thread_map_drawer)
+        self._running = True
+        self._draw_map_event = threading.Event()
+        self._T1.start()
         
-        # add blocks to map
-        for new_block in new_blocks:
-            found_match = False
-            for block in self.blocks:
-                if new_block == block:
-                    # Average positions
-                    updated_x = (block.location[0] + new_block.location[0]) / 2
-                    updated_y = (block.location[1] + new_block.location[1]) / 2
-                    block.location = (updated_x, updated_y)
-                    found_match = True
-                    break
-            if not found_match:
-                self.blocks.append(new_block)
+        # for video
+        width, height = 640, 480
+        fourcc = cv.VideoWriter_fourcc(*'mp4v')
+        self.out = cv.VideoWriter('plot_video.mp4', fourcc, 1.0, (width, height))  # 1 fps
+    
+    def _thread_map_drawer(self):
+        print("[WM] Started world map drawing thread.")
+        while self._running:
+            self._draw_map_event.wait()
+            self._draw_map_event.clear()  # Reset for next trigger
+            self._draw_map()
             
-        # remove blocks in map that aren't present
-        robo_position = metadata['position']
-        robo_heading = metadata['heading_deg']
-        rotated_old_blocks = self.translate_to_robo_position(
-            robo_position, robo_heading, self.blocks
-        )
-        rotated_new_blocks = self.translate_to_robo_position(
-            robo_position, robo_heading, new_blocks
-        )
-        remove_idxs = []
-        for i, block in enumerate(rotated_old_blocks):  
-            x, y = block.location
-            if (y < x * np.sqrt(3)/3  and
-                y > -1 * x * np.sqrt(3)/3 and
-                block not in rotated_new_blocks):
-                    remove_idxs.append(i)
-        self.blocks = [
-            block for i, block in enumerate(self.blocks) if i not in remove_idxs
-            ]
-                
-                
+    def kill(self):
+        self._running = False
+        self._draw_map_event.set()  # Wake the thread if it's waiting
         
-    def translate_to_robo_position(self, robo_position, theta_d, blocks):
-        theta_r = np.deg2rad(theta_d)
-        cos_t = np.cos(theta_r)
-        sin_t = np.sin(theta_r)
-        x_r, y_r = robo_position
-
-        # Construct the inverse transformation matrix
-        T_inv = np.array([
-            [ cos_t,  sin_t, -x_r * cos_t - y_r * sin_t],
-            [-sin_t,  cos_t,  x_r * sin_t - y_r * cos_t],
-            [ 0.0,    0.0,    1.0]
-        ])
-        
-        blocks_rf = copy.deepcopy(blocks)
-        for block in blocks_rf:
-            block.location = np.array(block.location)
-            block.location = T_inv @ np.array([block.location[0], block.location[1], 1])
-            block.location = (block.location[0], block.location[1])
-
-        return blocks_rf
-        
-    def get_blocks(self):
-        return self.blocks
-
     def draw_map(self):
+        self._draw_map_event.set()
+        
+    def _draw_map(self):
+        
         plt.close('all')
         fig, ax = plt.subplots()  # << New figure and axes each time
-        self.axis = ax
-        self.figure = fig
         ax.set_aspect("equal")
 
         # Draw the bounds of the map
@@ -169,30 +107,37 @@ class WorldMap:
         ax.add_patch(start_area)
 
         # Draw the robot
-        location, heading_deg = self.get_robot_position()
-        robo_x, robo_y = location
+        robo_x, robo_y = self.robot_position
         triangle = np.array([[0.0762, 0, 1], [-0.254, 0.1016, 1], [-0.254, -0.1016, 1]])
-        theta = np.deg2rad(heading_deg)
+        theta = np.deg2rad(self.imu.get_heading())
         c, s = np.cos(theta), np.sin(theta)
         T = np.array([[c, -s, robo_x], [s, c, robo_y], [0, 0, 1]])
         triangle = (T @ triangle.T).T[:, :2]
         robot_patch = patches.Polygon(triangle, closed=True, color="black")
         ax.add_patch(robot_patch)
-
+        
+        with self.lock1:
+            blocks = copy.deepcopy(self.blocks)
         # Draw the blocks
-        for block in self.blocks:
+        for block in blocks:
             x, y = block.location
             ax.scatter(x, y, c=block.color)
             circle = plt.Circle(
                 (x, y), BLOCK_KEEPOUT, color=block.color, fill=False, clip_on=True
             )
             ax.add_patch(circle)
+        
+        # Draw the previous planned paths
+        with self.lock3:
+            previous_planned_paths = copy.deepcopy(self.previous_planned_paths)
+        for path in previous_planned_paths:
+            self.draw_path_on_map(ax, path, "gray", save_fig=False)
             
         # Draw the previous paths
-        for path in self.previous_paths:
-            self.draw_path_on_map(path, "blue", save_fig=False)
-        for path in self.previous_planned_paths:
-            self.draw_path_on_map(path, "gray", save_fig=False)
+        with self.lock2:
+            previous_paths = copy.deepcopy(self.previous_paths)
+        for path in previous_paths:
+            self.draw_path_on_map(ax, path, "blue", save_fig=False)
             
             
         ax.set_title("World Map")
@@ -216,20 +161,116 @@ class WorldMap:
 
         ax.set_axisbelow(True)
         ax.grid(True, which="both", linestyle="--", linewidth=0.5)
-    
-        
 
         plt.savefig("world_map.jpg")
-        # plt.show()
-        # plt.close(fig)  # << clean up the figure from memory if you're doing many plots
+        buf = BytesIO()
+        plt.savefig(buf, format='png')
+        buf.seek(0)
+        # Read image from buffer and convert to OpenCV format
+        img_arr = np.frombuffer(buf.getvalue(), dtype=np.uint8)
+        img = cv.imdecode(img_arr, cv.IMREAD_COLOR)
+        # Resize to match video size
+        width, height = 640, 480
+        img = cv.resize(img, (width, height))
+        self.out.write(img)
+      
+        
+    def get_robot_position(self):
+        """Returns the position and orientation of the robot"""
+
+        # For DEBUG ONLY
+        if self.imu is None:
+            print("[PLAN] WORLD MAP IS IN DEBUG MODE !!!")
+            return self.robot_position, self._debug_heading
+
+        return self.robot_position, self.imu.get_heading()
+
+    def update_blocks(self, new_blocks: List[Block], metadata):
+        """
+        Updates the location of blocks in the world map based on the metadata provided
+        @param blocks: List of block positions from the robot frame of reference
+        """
+        
+        # if block is in the construction zone, ignore it
+        # or if block is outside the bounds of the map, ignore it
+        blocks_to_ignore = []
+        for i, new_block in enumerate(new_blocks):
+            x, y = new_block.location
+            if ((x < self.construction_area_dim[0] and
+                y > self.bounds[1] - self.construction_area_dim[1]) or
+                (x < 0 or x > self.bounds[0] or y < 0 or y > self.bounds[1])):
+                    blocks_to_ignore.append(i)
+        new_blocks = [
+                block for i, block in enumerate(new_blocks) if i not in blocks_to_ignore
+        ]  
+        
+        with self.lock1:      
+            blocks = self.blocks
+        
+        # add blocks to map
+        for new_block in new_blocks:
+            found_match = False
+            for old_block in blocks:
+                if new_block == old_block:
+                    # Average positions
+                    updated_x = (old_block.location[0] + new_block.location[0]) / 2
+                    updated_y = (old_block.location[1] + new_block.location[1]) / 2       
+                    old_block.location = (updated_x, updated_y)
+                    found_match = True
+                    break
+            if not found_match:
+                blocks.append(new_block)
+            
+        # remove blocks in map that aren't present
+        robo_position = metadata['position']
+        robo_heading = metadata['heading_deg']
+        rotated_old_blocks = self.translate_to_robo_position(
+            robo_position, robo_heading, blocks
+        )
+        rotated_new_blocks = self.translate_to_robo_position(
+            robo_position, robo_heading, new_blocks
+        )
+        remove_idxs = []
+        for i, block in enumerate(rotated_old_blocks):  
+            x, y = block.location
+            if (y < x * np.sqrt(3)/3  and
+                y > -1 * x * np.sqrt(3)/3 and
+                block not in rotated_new_blocks):
+                    remove_idxs.append(i)
+        blocks = [
+            block for i, block in enumerate(blocks) if i not in remove_idxs
+        ]
+        with self.lock1:
+            self.blocks = blocks
+                
+            
+    def translate_to_robo_position(self, robo_position, theta_d, blocks):
+        theta_r = np.deg2rad(theta_d)
+        cos_t = np.cos(theta_r)
+        sin_t = np.sin(theta_r)
+        x_r, y_r = robo_position
+
+        # Construct the inverse transformation matrix
+        T_inv = np.array([
+            [ cos_t,  sin_t, -x_r * cos_t - y_r * sin_t],
+            [-sin_t,  cos_t,  x_r * sin_t - y_r * cos_t],
+            [ 0.0,    0.0,    1.0]
+        ])
+        
+        blocks_rf = copy.deepcopy(blocks)
+        for block in blocks_rf:
+            block.location = np.array(block.location)
+            block.location = T_inv @ np.array([block.location[0], block.location[1], 1])
+            block.location = (block.location[0], block.location[1])
+
+        return blocks_rf
+        
+    def get_blocks(self):
+        return self.blocks
         
 
-    def draw_path_on_map(self, path: List[tuple], color:str, save_fig=False):
+    def draw_path_on_map(self, axes, path: List[tuple], color:str, save_fig=False):
         """Given a list of x,y points, draws the path on the map"""
-
-        if self.axis is None or self.figure is None:
-            print("[PLAN] No map to draw on")
-            return
         
         if path is None:
             print("[PLAN] Attempted to draw NoneType")
@@ -238,7 +279,7 @@ class WorldMap:
         for i in range(len(path) - 1):
             x1, y1 = path[i]
             x2, y2 = path[i + 1]
-            self.axis.plot([x1, x2], [y1, y2], color=color, linewidth=2)
+            axes.plot([x1, x2], [y1, y2], color=color, linewidth=2)
 
         if save_fig:
             plt.savefig("world_map.jpg")
@@ -249,16 +290,19 @@ class WorldMap:
         Given a path of x, y points, add it to the running list of movements
         Update the robot location to the last point in the given path
         """
-        self.previous_paths.append(path)
+        with self.lock2:
+            self.previous_paths.append(path)
         self.robot_position = path[-1]
         
     def add_to_planned_paths(self, path):
-        self.previous_planned_paths.append(path)
+        with self.lock3:
+            self.previous_planned_paths.append(path)
 
             
     def remove_block(self, block: Block):
         """Removes a block from the world map"""
-        self.blocks.remove(block)
+        with self.lock1:
+            self.blocks.remove(block)
         print(f"[PLAN] Removed {block.color} block at {block.location}")
         return True
     
@@ -304,7 +348,6 @@ class WorldMap:
         """
         Given a list of movements the robot took, return the path in the world frame.
         """
-        print("[debug] ", movements)
         angle = self.get_robot_position()[1]
         path = [start_point]
         base = start_point
@@ -321,7 +364,22 @@ class WorldMap:
                 )
                 path.append(base)
         return path
-
+    
+    def remove_blocks_already_in_keepout(self, point):
+        """
+        Given a point, remove any blocks that the robot is already in the keepout of
+        Needed for path planning to construction zone when blocks are close together
+        """
+        with self.lock1:
+            replacement = copy.copy(self.blocks)
+        for block in self.blocks:
+            if (
+                np.sqrt((block.location[0] - point[0]) ** 2 + (block.location[1] - point[1]) ** 2)
+            < BLOCK_KEEPOUT
+            ):
+                replacement.remove(block)
+        with self.lock1:
+            self.blocks = replacement
 
 class Node:
     def __init__(self, position, cost_to_come=None, estimated_total_cost=None, heading = None, parent=None):
@@ -504,10 +562,11 @@ class PathPlanner:
             closed_set[Node(current.position)] = current
 
             if debug > 0 and (current.parent is not None):
+                axes = plt.gca()
                 closed_path = [current.parent.position, current.position]
-                self.wm.draw_path_on_map(closed_path, "pink", False)
+                self.wm.draw_path_on_map(axes, closed_path, "pink", False)
                 if debug > 1:
-                    self.wm.draw_path_on_map(closed_path, "pink", True)
+                    self.wm.draw_path_on_map(axes, closed_path, "pink", True)
                     input("...")  # give time to review map
 
             for neighbor in self._get_neighbors(current, goal):
@@ -527,10 +586,11 @@ class PathPlanner:
                     open_set[neighbor] = neighbor
                     heapq.heappush(open_heap, neighbor)
                     if debug > 0 :
+                        axes = plt.gca()
                         open_path = [neighbor.parent.position, neighbor.position]
-                        self.wm.draw_path_on_map(open_path, "gray", False)
+                        self.wm.draw_path_on_map(axes, open_path, "gray", False)
                         if debug > 1:
-                            self.wm.draw_path_on_map(open_path, "gray", True)
+                            self.wm.draw_path_on_map(axes, open_path, "gray", True)
                             input("...")
 
             counter += 1
@@ -560,7 +620,8 @@ class PathPlanner:
         path = self.reconstruct_path(last_node)
         # self.wm.draw_path_on_map(path, "gray", True)
         if debug > 0:
-            self.wm.draw_path_on_map(path, "red", True)
+            axes = plt.gca()
+            self.wm.draw_path_on_map(axes, path, "red", True)
         return path
 
 

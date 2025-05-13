@@ -4,4 +4,6 @@
 *.h264
 .DS_Store
 utilities/__pycache__
+GrandChallenge/__pycache__/
 .vscode/
+*.mp4

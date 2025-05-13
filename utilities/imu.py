@@ -45,13 +45,13 @@ class IMU:
             _heading = float(data[0])
             _heading = _heading * -1 % 360
 
-            with self.lock:
-                self.heading = _heading
+            # with self.lock:
+            self.heading = _heading
 
     def get_heading(self):
         """Returns the current heading of the robot in degrees"""
-        with self.lock:
-            return self.heading
+        # with self.lock:
+        return self.heading
 
 
 if __name__ == "__main__":

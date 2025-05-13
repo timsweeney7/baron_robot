@@ -6,18 +6,22 @@ from utilities.vision import Camera
 from utilities.RobotMotorControl import RobotMotorControl
 from utilities.odometry import Odometer
 
+from GrandChallenge.main import BLOCK_IN_GRIP_RANGE, MAP_LENGTH, MAP_WIDTH
+
 
 
 COLLECT_BLOCK = 0
+PLAN_PATH_TO_CONSTRUCTION = 1
 CURRENT_STATE = COLLECT_BLOCK
 
 odom = Odometer()
 imu = IMU()
-world_map = WorldMap()
+world_map = WorldMap(MAP_LENGTH, MAP_WIDTH, imu)
 cam = Camera(world_map)
-rmc = RobotMotorControl(imu=imu, odometer=odom)
+rmc = RobotMotorControl(imu=imu, odom=odom)
 
-target_color = "red"
+target_color = "RED"
+rmc.open_gripper()
 
 if CURRENT_STATE == COLLECT_BLOCK:
     print("[Main] Collecting block")
@@ -27,6 +31,7 @@ if CURRENT_STATE == COLLECT_BLOCK:
     block_collected = False
     while not block_collected:
         rgb_image, metadata = cam.capture_image()
+        print(metadata)
         cv.imwrite("rgb_image.jpg", cv.cvtColor(rgb_image, cv.COLOR_RGB2BGR))
         blocked_image, blocks = cam.find_blocks(rgb_image, metadata)
         cv.imwrite("block_image.jpg", cv.cvtColor(blocked_image, cv.COLOR_RGB2BGR))
@@ -43,15 +48,26 @@ if CURRENT_STATE == COLLECT_BLOCK:
             rmc.rotate_by(30)
             continue
         if target_block.bounding_origin[1] >= BLOCK_IN_GRIP_RANGE: # if bounding box is low in frame
-            rmc.close_gripper()
-            block_collected = True
-            print(f"[MAIN] {target_block.color} block collected!")
-            try:
-                world_map.remove_block(goal)
-            except:
-                ValueError("[MAIN] Target block already removed.")
-            CURRENT_STATE = PLAN_PATH_TO_CONSTRUCTION
-            continue
+            if target_block.angle_to_robo < 10:
+                rmc.close_gripper()
+                block_collected = True
+                print(f"[MAIN] {target_block.color} block collected!")
+                try:
+                    world_map.remove_block(goal)
+                except:
+                    ValueError("[MAIN] Target block already removed.")
+                CURRENT_STATE = PLAN_PATH_TO_CONSTRUCTION
+                continue
+            else:
+                # Rotate to Block
+                goal_angle = target_block.angle_to_robo
+                rotation_angle = rmc.rotate_by(goal_angle)
+                collection_movements.append(
+                    (
+                        ("Angle", rotation_angle)
+                    )
+                )
+                continue
         # Get block heading and orient to it
         goal_angle = target_block.angle_to_robo
         rotation_angle = rmc.rotate_by(goal_angle)
