@@ -22,7 +22,7 @@ FORWARD_RIGHT = 26
 # TURN_SLOW_DUTY_CYCLE = 30
 
 # Home low battery
-TURN_FAST_DUTY_CYCLE = 35
+TURN_FAST_DUTY_CYCLE = 40
 TURN_SLOW_DUTY_CYCLE = 35
 
 FORWARD_DUTY_CYCLE = 60
@@ -226,10 +226,12 @@ class RobotMotorControl:
         angle_deg = (angle_deg + 360) % 360
         heading = self.imu.get_heading()
         option_1 = angle_deg - heading
+        
         if option_1 >= 0:
             option_2 = option_1 % -360
         else:
             option_2 = option_1 % 360
+            
         if abs(option_1) <= abs(option_2):
             heading = self.rotate_by(option_1)
         else:
@@ -271,15 +273,15 @@ class RobotMotorControl:
             self.pi.set_PWM_dutycycle(BACKWARD_LEFT, TURN_FAST_DUTY_CYCLE)
             while True:
                 heading = self.imu.get_heading()
-                # if DEBUG == True:
-                #     print(f"[RMC][rotate_by ccw] Heading: {heading}")
+                if DEBUG == True:
+                    print(f"[RMC][rotate_by ccw] Heading: {heading}")
                 if self._within_tolerance(
                     current=heading, target=target_heading, tolerance=35
                 ):
                     # print("[DEBUG] Within Tolerance")
                     self.pi.set_PWM_dutycycle(FORWARD_RIGHT, TURN_SLOW_DUTY_CYCLE + stuck_rotate_fix)
                     self.pi.set_PWM_dutycycle(BACKWARD_LEFT, TURN_SLOW_DUTY_CYCLE + stuck_rotate_fix)
-                    if stuck_rotate_counter >= 10:
+                    if stuck_rotate_counter >= 50:
                         stuck_rotate_fix += 1
                         stuck_rotate_counter = 0
                     stuck_rotate_counter += 1
@@ -287,7 +289,7 @@ class RobotMotorControl:
                     start_heading, target_heading, heading
                 ):
                     break
-                time.sleep(0.05)
+                time.sleep(0.01)
 
         elif angle_deg < 0:
             stuck_rotate_fix = 0
@@ -302,14 +304,14 @@ class RobotMotorControl:
             self.pi.set_PWM_dutycycle(FORWARD_LEFT, TURN_FAST_DUTY_CYCLE)
             while True:
                 heading = self.imu.get_heading()
-                # if DEBUG == True:
-                #     print(f"[RMC][rotate_by cw] Heading: {heading}")
+                if DEBUG == True:
+                    print(f"[RMC][rotate_by cw] Heading: {heading}")
                 if self._within_tolerance(
                     current=heading, target=target_heading, tolerance=35
                 ):
                     self.pi.set_PWM_dutycycle(BACKWARD_RIGHT, TURN_SLOW_DUTY_CYCLE + stuck_rotate_fix)
                     self.pi.set_PWM_dutycycle(FORWARD_LEFT, TURN_SLOW_DUTY_CYCLE + stuck_rotate_fix)
-                    if stuck_rotate_counter >= 10:
+                    if stuck_rotate_counter >= 50:
                         stuck_rotate_fix += 1
                         stuck_rotate_counter = 0
                     stuck_rotate_counter += 1
@@ -317,7 +319,7 @@ class RobotMotorControl:
                     start_heading, target_heading, heading
                 ):
                     break
-                time.sleep(0.05)
+                time.sleep(0.01)
 
         self.stop_motion()
         time.sleep(0.3)  # wait for robot to settle

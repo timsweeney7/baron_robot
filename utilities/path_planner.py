@@ -12,7 +12,7 @@ from io import BytesIO
 from utilities.block import Block
 from utilities.imu import IMU
 
-MAP_EDGE_KEEPOUT = 0.3048/2  # 1 FOOT
+MAP_EDGE_KEEPOUT = 0.30  # 1 FOOT
 BLOCK_KEEPOUT = 0.35
 
 
@@ -34,7 +34,7 @@ class WorldMap:
         
         x = (self.construction_area_dim[0]) / 2 
         y = -1 * x + self.bounds[1]
-        self.construction_area_center = (x, y)
+        self.construction_area_center = (x+0.08, y-0.08)
         
         self.previous_paths = []
         self.previous_planned_paths = []
@@ -105,6 +105,18 @@ class WorldMap:
             edgecolor="black"
         )
         ax.add_patch(start_area)
+        
+        # Draw the previous planned paths
+        with self.lock3:
+            previous_planned_paths = copy.deepcopy(self.previous_planned_paths)
+        for path in previous_planned_paths:
+            self.draw_path_on_map(ax, path, "gray", save_fig=False)
+            
+        # Draw the previous paths
+        with self.lock2:
+            previous_paths = copy.deepcopy(self.previous_paths)
+        for path in previous_paths:
+            self.draw_path_on_map(ax, path, "blue", save_fig=False)
 
         # Draw the robot
         robo_x, robo_y = self.robot_position
@@ -126,18 +138,6 @@ class WorldMap:
                 (x, y), BLOCK_KEEPOUT, color=block.color, fill=False, clip_on=True
             )
             ax.add_patch(circle)
-        
-        # Draw the previous planned paths
-        with self.lock3:
-            previous_planned_paths = copy.deepcopy(self.previous_planned_paths)
-        for path in previous_planned_paths:
-            self.draw_path_on_map(ax, path, "gray", save_fig=False)
-            
-        # Draw the previous paths
-        with self.lock2:
-            previous_paths = copy.deepcopy(self.previous_paths)
-        for path in previous_paths:
-            self.draw_path_on_map(ax, path, "blue", save_fig=False)
             
             
         ax.set_title("World Map")

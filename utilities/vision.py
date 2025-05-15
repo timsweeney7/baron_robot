@@ -11,16 +11,16 @@ from utilities.block import Block
 
 
 # ARENA ----------------
-RED_LS_LB = np.array([0, 220, 100])
-RED_LS_UB = np.array([15, 255, 255])
-RED_HS_LB = np.array([165, 150, 105])
-RED_HS_UB = np.array([180, 255, 255])
+# RED_LS_LB = np.array([0, 220, 100])
+# RED_LS_UB = np.array([15, 255, 255])
+# RED_HS_LB = np.array([165, 150, 105])
+# RED_HS_UB = np.array([180, 255, 255])
 
-GREEN_LB = np.array([40, 60, 110])
-GREEN_UB = np.array([80, 255, 255])
+# GREEN_LB = np.array([40, 60, 110])
+# GREEN_UB = np.array([80, 255, 255])
 
-CYAN_LB = np.array([100, 140, 100])
-CYAN_UB = np.array([110, 255, 255])
+# CYAN_LB = np.array([100, 140, 100])
+# CYAN_UB = np.array([110, 255, 255])
 
 
 # HOME ----------------
